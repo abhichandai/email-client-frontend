@@ -19,6 +19,24 @@ async function createSupabase() {
   );
 }
 
+// Map Supabase snake_case rows back to the camelCase shape the frontend expects
+function mapDbEmail(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    provider: row.provider,
+    from: row.from_address,
+    subject: row.subject,
+    date: row.date,
+    snippet: row.snippet,
+    isRead: row.is_read,
+    threadId: row.thread_id,
+    accountEmail: row.account_email,
+    priority: row.priority,
+    reason: row.priority_reason,
+    priority_override: row.priority_override,
+  };
+}
+
 async function fetchGmailEmails(accessToken: string, pageToken?: string) {
   const params = new URLSearchParams({ maxResults: '50', labelIds: 'INBOX' });
   if (pageToken) params.set('pageToken', pageToken);
@@ -109,7 +127,7 @@ export async function GET(request: NextRequest) {
   // Load rules
   const { data: rulesRow } = await supabase.from('priority_rules').select('*').eq('user_id', user.id).single();
 
-  return NextResponse.json({ emails: emails || [], rules: rulesRow || null, fromCache: true });
+  return NextResponse.json({ emails: (emails || []).map(mapDbEmail), rules: rulesRow || null, fromCache: true });
 }
 
 // POST - sync from Gmail + save to DB
@@ -129,7 +147,7 @@ export async function POST(request: NextRequest) {
       if (age < 5 * 60 * 1000) {
         // Return from cache
         const { data: emails } = await supabase.from('emails').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(50);
-        return NextResponse.json({ emails: emails || [], nextPageToken: null, fromCache: true });
+        return NextResponse.json({ emails: (emails || []).map(mapDbEmail), nextPageToken: null, fromCache: true });
       }
     }
   }
