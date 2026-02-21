@@ -9,11 +9,23 @@ export default function SupabaseCallback() {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.onAuthStateChange((event) => {
+
+    // Check if already signed in (session exists from OAuth redirect)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        router.push('/');
+        return;
+      }
+    });
+
+    // Also listen for the sign-in event
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_IN') {
         router.push('/');
       }
     });
+
+    return () => subscription.unsubscribe();
   }, [router]);
 
   return (
