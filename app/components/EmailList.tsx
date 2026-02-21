@@ -15,6 +15,7 @@ interface EmailListProps {
   hasMore?: boolean;
   onLoadMore?: () => void;
   onEmailUpdate?: (updated: Partial<Email> & { id: string }) => void;
+  onBulkUpdate?: (emails: Email[]) => void;
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -25,7 +26,7 @@ interface ContextMenu { x: number; y: number; email: Email; }
 
 export default function EmailList({
   emails, loading, selected, onSelect, onRefresh,
-  isMobile, onMenuOpen, loadingMore, hasMore, onLoadMore, onEmailUpdate,
+  isMobile, onMenuOpen, loadingMore, hasMore, onLoadMore, onEmailUpdate, onBulkUpdate,
 }: EmailListProps) {
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);

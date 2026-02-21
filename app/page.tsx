@@ -46,6 +46,13 @@ function InboxApp() {
     setSelected(prev => prev?.id === updated.id ? { ...prev, ...updated } : prev);
   }, []);
 
+  // Replace all emails with fresh DB snapshot (used after sender priority change)
+  const bulkUpdateEmails = useCallback((freshEmails: Email[]) => {
+    setEmails(freshEmails);
+    // Update selected email too if it's in the new list
+    setSelected(prev => prev ? (freshEmails.find(e => e.id === prev.id) || prev) : null);
+  }, []);
+
   const fetchEmails = useCallback(async (pageToken?: string, forceRefresh = false) => {
     if (!accounts.length) { setError('No accounts connected.'); return; }
 
@@ -167,6 +174,7 @@ function InboxApp() {
               loadingMore={loadingMore} hasMore={!!nextPageToken}
               onLoadMore={() => fetchEmails(nextPageToken!)}
               onEmailUpdate={updateEmail}
+              onBulkUpdate={bulkUpdateEmails}
             />
           </div>
 
@@ -177,6 +185,7 @@ function InboxApp() {
               onClose={() => { setSelected(null); if (isMobile) setMobileView('list'); }}
               isMobile={isMobile}
               onEmailUpdate={updateEmail}
+              onBulkUpdate={bulkUpdateEmails}
             />
           </div>
         </div>

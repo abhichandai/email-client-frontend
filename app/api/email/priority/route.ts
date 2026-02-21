@@ -18,24 +18,58 @@ export async function POST(request: NextRequest) {
 
   const { emailId, priority, senderEmail, addToRules } = await request.json();
 
-  // Update the email's priority
-  await supabase.from('emails').update({ priority, priority_override: priority }).eq('id', emailId).eq('user_id', user.id);
-
-  // Optionally add sender to rules
   if (addToRules && senderEmail) {
-    const { data: existing } = await supabase.from('priority_rules').select('*').eq('user_id', user.id).single();
+    // 1. Update priority_rules
+    const { data: existing } = await supabase
+      .from('priority_rules')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
+
     const rules = existing || { important_senders: [], unimportant_senders: [], important_domains: [], important_keywords: [] };
-    
+
     if (priority === 'HIGH') {
       rules.important_senders = [...new Set([...(rules.important_senders || []), senderEmail])];
       rules.unimportant_senders = (rules.unimportant_senders || []).filter((s: string) => s !== senderEmail);
     } else if (priority === 'LOW') {
       rules.unimportant_senders = [...new Set([...(rules.unimportant_senders || []), senderEmail])];
       rules.important_senders = (rules.important_senders || []).filter((s: string) => s !== senderEmail);
+    } else if (priority === 'MEDIUM') {
+      // Remove from both lists — let AI decide (but set MEDIUM for now)
+      rules.important_senders = (rules.important_senders || []).filter((s: string) => s !== senderEmail);
+      rules.unimportant_senders = (rules.unimportant_senders || []).filter((s: string) => s !== senderEmail);
     }
 
-    await supabase.from('priority_rules').upsert({ user_id: user.id, ...rules, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
-  }
+    await supabase.from('priority_rules').upsert(
+      { user_id: user.id, ...rules, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' }
+    );
 
-  return NextResponse.json({ success: true });
+    // 2. Bulk-update ALL emails from this sender in DB — no Gmail sync needed
+    // Match on from_address containing the sender email
+    await supabase
+      .from('emails')
+      .update({ priority, priority_override: priority })
+      .eq('user_id', user.id)
+      .ilike('from_address', `%${senderEmail}%`);
+
+    // 3. Return all updated emails so the UI can refresh from DB
+    const { data: updatedEmails } = await supabase
+      .from('emails')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('date', { ascending: false });
+
+    return NextResponse.json({ success: true, updatedEmails: updatedEmails || [] });
+
+  } else {
+    // Single email override only
+    await supabase
+      .from('emails')
+      .update({ priority, priority_override: priority })
+      .eq('id', emailId)
+      .eq('user_id', user.id);
+
+    return NextResponse.json({ success: true, updatedEmails: null });
+  }
 }
