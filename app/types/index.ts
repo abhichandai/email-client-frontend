@@ -9,5 +9,7 @@ export interface Email {
   threadId: string;
   accountEmail: string;
   priority: 'HIGH' | 'MEDIUM' | 'LOW';
-  priorityReason: string;
+  priority_override?: string;
+  priorityReason?: string;
+  reason?: string;
 }

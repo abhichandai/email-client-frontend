@@ -19,11 +19,12 @@ interface SidebarProps {
   emailCounts: Record<string, number>;
   rules: PriorityRules;
   onSaveRules: (rules: PriorityRules) => void;
+  onForceSync: () => void;
 }
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-export default function Sidebar({ filter, setFilter, onCompose, emailCounts, rules, onSaveRules }: SidebarProps) {
+export default function Sidebar({ filter, setFilter, onCompose, emailCounts, rules, onSaveRules, onForceSync }: SidebarProps) {
   const { accounts, removeAccount } = useAccounts();
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showRules, setShowRules] = useState(false);
@@ -79,15 +80,22 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts, rul
         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, letterSpacing: '0.15em', textTransform: 'uppercase' }}>Priority Inbox</div>
       </div>
 
-      {/* Compose */}
-      <div style={{ padding: '16px 16px 8px' }}>
+      {/* Compose + Sync */}
+      <div style={{ padding: '16px 16px 8px', display: 'flex', gap: 6 }}>
         <button onClick={onCompose} style={{
-          width: '100%', padding: '9px 14px', background: '#d4a853', color: '#0a0a0a',
-          borderRadius: 6, fontSize: 13, fontWeight: 500, letterSpacing: '0.2px', transition: 'opacity 0.15s',
+          flex: 1, padding: '9px 14px', background: '#d4a853', color: '#0a0a0a',
+          borderRadius: 6, fontSize: 13, fontWeight: 500, transition: 'opacity 0.15s',
         }}
           onMouseOver={e => (e.currentTarget.style.opacity = '0.85')}
           onMouseOut={e => (e.currentTarget.style.opacity = '1')}
         >+ Compose</button>
+        <button onClick={onForceSync} title="Sync fresh from Gmail" style={{
+          padding: '9px 10px', background: 'var(--bg-3)', color: 'var(--text-muted)',
+          border: '1px solid var(--border)', borderRadius: 6, fontSize: 14,
+        }}
+          onMouseOver={e => (e.currentTarget.style.color = 'var(--accent)')}
+          onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+        >↺</button>
       </div>
 
       {/* Filters */}
