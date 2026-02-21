@@ -54,7 +54,7 @@ export default function EmailList({
 
   const setPriority = async (email: Email, priority: string) => {
     setContextMenu(null);
-    onEmailUpdate?.({ id: email.id, priority });
+    onEmailUpdate?.({ id: email.id, priority: priority as 'HIGH' | 'MEDIUM' | 'LOW' });
     await fetch('/api/email/priority', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ emailId: email.id, priority, addToRules: false }),

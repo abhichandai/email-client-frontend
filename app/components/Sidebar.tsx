@@ -20,12 +20,11 @@ interface SidebarProps {
   rules: PriorityRules;
   onSaveRules: (rules: PriorityRules) => void;
   onForceRefresh: () => void;
-  onForceSync: () => void;
 }
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-export default function Sidebar({ filter, setFilter, onCompose, emailCounts, rules, onSaveRules, onForceSync }: SidebarProps) {
+export default function Sidebar({ filter, setFilter, onCompose, emailCounts, rules, onSaveRules, onForceRefresh }: SidebarProps) {
   const { accounts, removeAccount } = useAccounts();
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showRules, setShowRules] = useState(false);
@@ -90,7 +89,7 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts, rul
           onMouseOver={e => (e.currentTarget.style.opacity = '0.85')}
           onMouseOut={e => (e.currentTarget.style.opacity = '1')}
         >+ Compose</button>
-        <button onClick={onForceSync} title="Sync fresh from Gmail" style={{
+        <button onClick={onForceRefresh} title="Sync fresh from Gmail" style={{
           padding: '9px 10px', background: 'var(--bg-3)', color: 'var(--text-muted)',
           border: '1px solid var(--border)', borderRadius: 6, fontSize: 14,
         }}

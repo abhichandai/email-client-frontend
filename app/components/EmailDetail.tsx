@@ -8,8 +8,7 @@ interface EmailDetailProps {
   onReply: (email: Email) => void;
   onClose: () => void;
   isMobile?: boolean;
-  onPriorityChange?: (email: Email, priority: string) => void;
-  onMarkRead?: (email: Email, isRead: boolean) => void;
+  onEmailUpdate?: (updated: Partial<Email> & { id: string }) => void;
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -24,7 +23,7 @@ const PRIORITY_LABELS: Record<string, string> = {
   LOW: '⚫ Low',
 };
 
-export default function EmailDetail({ email, onReply, onClose, isMobile, onPriorityChange, onMarkRead }: EmailDetailProps) {
+export default function EmailDetail({ email, onReply, onClose, isMobile, onEmailUpdate }: EmailDetailProps) {
   const [showPriorityMenu, setShowPriorityMenu] = useState(false);
 
   if (!email) {
@@ -90,7 +89,7 @@ export default function EmailDetail({ email, onReply, onClose, isMobile, onPrior
               {(['HIGH', 'MEDIUM', 'LOW'] as const).map(p => (
                 <button
                   key={p}
-                  onClick={() => { onPriorityChange?.(email, p); setShowPriorityMenu(false); }}
+                  onClick={() => { onEmailUpdate?.({ id: email.id, priority: p as Email["priority"] }); setShowPriorityMenu(false); }}
                   style={{
                     width: '100%', padding: '9px 14px', textAlign: 'left',
                     fontSize: 12, color: PRIORITY_COLORS[p], display: 'flex', alignItems: 'center', gap: 8,
@@ -111,7 +110,7 @@ export default function EmailDetail({ email, onReply, onClose, isMobile, onPrior
 
         {/* Mark read/unread */}
         <button
-          onClick={() => onMarkRead?.(email, !email.isRead)}
+          onClick={() => onEmailUpdate?.({ id: email.id, isRead: !email.isRead })}
           style={{
             padding: '5px 10px', background: 'var(--bg-3)',
             border: '1px solid var(--border)', borderRadius: 5, fontSize: 11,
