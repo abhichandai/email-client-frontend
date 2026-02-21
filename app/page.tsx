@@ -37,24 +37,23 @@ function InboxApp() {
       setError('No accounts connected.');
       return;
     }
-    // Check tokens exist
     const hasTokens = accounts.every(a => a.tokens?.access_token);
     if (!hasTokens) {
-      setError('Account connected but no access token found. Please sign out and sign in again.');
+      setError('No access token found. Please sign out and sign in again.');
       return;
     }
 
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(API + '/emails/inbox', {
+      const res = await fetch('/api/inbox', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accounts }),
       });
       const data = await res.json();
       if (data.error) {
-        setError('Backend error: ' + data.error);
+        setError('Error: ' + data.error);
       } else {
         setEmails(data.emails || []);
       }
