@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createClient } from '../../lib/supabase';
 
 export interface Account {
   id: string;
@@ -25,8 +26,28 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const [accounts, setAccounts] = useState<Account[]>([]);
 
   useEffect(() => {
-    const stored = localStorage.getItem('email-accounts');
-    if (stored) setAccounts(JSON.parse(stored));
+    const supabase = createClient();
+
+    // Auto-connect Gmail from Supabase Google session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.provider_token && session.user?.email) {
+        const gmailAccount: Account = {
+          id: session.user.id,
+          provider: 'gmail',
+          email: session.user.email,
+          tokens: {
+            access_token: session.provider_token,
+            refresh_token: session.provider_refresh_token,
+            token_type: 'Bearer',
+          },
+        };
+        setAccounts([gmailAccount]);
+        localStorage.setItem('email-accounts', JSON.stringify([gmailAccount]));
+      } else {
+        const stored = localStorage.getItem('email-accounts');
+        if (stored) setAccounts(JSON.parse(stored));
+      }
+    });
   }, []);
 
   const addAccount = (account: Account) => {

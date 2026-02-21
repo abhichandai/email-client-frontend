@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAccounts, Account } from '../context/accounts';
+import { createClient } from '../../lib/supabase';
 
 interface SidebarProps {
   accounts: Account[];
@@ -173,6 +174,22 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts }: S
             </div>
           )}
         </div>
+      </div>
+
+      {/* Sign out */}
+      <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)' }}>
+        <button
+          onClick={async () => {
+            const supabase = createClient();
+            await supabase.auth.signOut();
+            window.location.href = '/login';
+          }}
+          style={{ fontSize: 12, color: '#444', display: 'flex', alignItems: 'center', gap: 6 }}
+          onMouseOver={(e) => (e.currentTarget.style.color = '#888')}
+          onMouseOut={(e) => (e.currentTarget.style.color = '#444')}
+        >
+          Sign out
+        </button>
       </div>
     </aside>
   );
