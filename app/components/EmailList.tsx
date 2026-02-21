@@ -1,7 +1,6 @@
 'use client';
 
 import { Email } from '../types';
-import { formatDistanceToNow } from 'date-fns';
 
 interface EmailListProps {
   emails: Email[];
@@ -11,161 +10,169 @@ interface EmailListProps {
   onRefresh: () => void;
   isMobile?: boolean;
   onMenuOpen?: () => void;
+  loadingMore?: boolean;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
 }
 
-const priorityDot: Record<string, string> = {
+const PRIORITY_COLORS: Record<string, string> = {
   HIGH: '#e05c5c',
   MEDIUM: '#d4a853',
-  LOW: '#333',
+  LOW: '#444',
 };
 
-function parseFrom(from: string) {
-  const match = from.match(/^(.+?)\s*<(.+)>$/);
-  if (match) return { name: match[1].replace(/"/g, ''), email: match[2] };
-  return { name: from, email: from };
-}
-
-export default function EmailList({ emails, loading, selected, onSelect, onRefresh, isMobile, onMenuOpen }: EmailListProps) {
+export default function EmailList({
+  emails, loading, selected, onSelect, onRefresh,
+  isMobile, onMenuOpen, loadingMore, hasMore, onLoadMore,
+}: EmailListProps) {
   return (
     <div style={{
       width: isMobile ? '100%' : 360,
-      borderRight: isMobile ? 'none' : '1px solid var(--border)',
+      height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      flexShrink: 0,
-      overflow: 'hidden',
-      flex: isMobile ? 1 : 'none',
+      borderRight: '1px solid var(--border)',
+      background: 'var(--bg)',
     }}>
       {/* Header */}
       <div style={{
-        padding: '16px 20px',
+        padding: '14px 20px',
         borderBottom: '1px solid var(--border)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         background: 'linear-gradient(180deg, rgba(212,168,83,0.03) 0%, transparent 100%)',
+        flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {isMobile && (
-            <button
-              onClick={onMenuOpen}
-              style={{ color: '#666', fontSize: 20, padding: '2px 4px', lineHeight: 1 }}
-            >
-              ☰
-            </button>
+            <button onClick={onMenuOpen} style={{ color: 'var(--text-muted)', fontSize: 18, lineHeight: 1, marginRight: 4 }}>☰</button>
           )}
-          <div style={{ fontSize: 13, color: '#666' }}>
+          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
             {loading ? 'Loading...' : `${emails.length} messages`}
-          </div>
+          </span>
         </div>
         <button
           onClick={onRefresh}
-          style={{ color: '#666', fontSize: 16, padding: 4, transition: 'color 0.15s' }}
-          onMouseOver={(e) => (e.currentTarget.style.color = '#d4a853')}
-          onMouseOut={(e) => (e.currentTarget.style.color = '#666')}
           title="Refresh"
-        >
-          ↻
-        </button>
+          style={{ color: 'var(--text-muted)', fontSize: 16, transition: 'color 0.15s' }}
+          onMouseOver={e => (e.currentTarget.style.color = 'var(--accent)')}
+          onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+        >↺</button>
       </div>
 
-      {/* Email rows */}
+      {/* Email list */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {loading && !emails.length ? (
-          <div style={{ padding: 40, textAlign: 'center', color: '#444' }}>
-            <div style={{ fontSize: 24, marginBottom: 8 }}>⟳</div>
-            Fetching & prioritizing...
+        {loading ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>✉</div>
+            Fetching & prioritizing emails...
           </div>
-        ) : !emails.length ? (
-          <div style={{ padding: 40, textAlign: 'center', color: '#444' }}>
+        ) : emails.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>✉</div>
             No emails to show.<br />
-            <span style={{ fontSize: 12, color: '#333' }}>Connect an account to get started.</span>
+            <span style={{ fontSize: 12 }}>Connect an account to get started.</span>
           </div>
         ) : (
-          emails.map((email) => {
-            const { name } = parseFrom(email.from);
-            const isSelected = selected?.id === email.id;
-            return (
+          <>
+            {emails.map((email) => (
               <button
                 key={email.id}
                 onClick={() => onSelect(email)}
                 style={{
                   width: '100%',
                   textAlign: 'left',
-                  padding: isMobile ? '16px 20px' : '14px 20px',
-                  background: isSelected ? 'rgba(212,168,83,0.06)' : 'transparent',
+                  padding: isMobile ? '14px 16px' : '12px 20px',
                   borderBottom: '1px solid var(--border)',
-                  borderLeft: isSelected ? '2px solid #d4a853' : '2px solid transparent',
+                  background: selected?.id === email.id ? 'rgba(212,168,83,0.06)' : 'transparent',
+                  borderLeft: selected?.id === email.id ? '2px solid var(--accent)' : '2px solid transparent',
                   transition: 'background 0.1s',
-                  cursor: 'pointer',
                   display: 'block',
                 }}
+                onMouseOver={e => { if (selected?.id !== email.id) e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
+                onMouseOut={e => { if (selected?.id !== email.id) e.currentTarget.style.background = 'transparent'; }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
+                {/* Top row: sender + time */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
                     <div style={{
-                      width: 7,
-                      height: 7,
-                      borderRadius: '50%',
-                      background: priorityDot[email.priority],
-                      flexShrink: 0,
-                    }} />
+                      width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                      background: PRIORITY_COLORS[email.priority] || '#444',
+                    }} title={email.priority} />
                     <span style={{
-                      fontSize: isMobile ? 14 : 13,
+                      fontSize: 13,
                       fontWeight: email.isRead ? 400 : 600,
-                      color: email.isRead ? '#888' : '#e8e8e8',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
+                      color: email.isRead ? 'var(--text-muted)' : 'var(--text)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>
-                      {name}
+                      {email.from?.replace(/<.*>/, '').trim() || 'Unknown'}
                     </span>
                   </div>
-                  <span style={{ fontSize: 11, color: '#555', flexShrink: 0, marginLeft: 8 }}>
-                    {(() => {
-                      try { return formatDistanceToNow(new Date(email.date), { addSuffix: true }); }
-                      catch { return ''; }
-                    })()}
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0, marginLeft: 8 }}>
+                    {formatDate(email.date)}
                   </span>
                 </div>
 
+                {/* Subject */}
                 <div style={{
-                  fontSize: isMobile ? 13 : 13,
+                  fontSize: 12,
+                  fontWeight: email.isRead ? 400 : 500,
                   color: email.isRead ? '#666' : '#ccc',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  marginBottom: 4,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  marginBottom: 3,
                 }}>
                   {email.subject || '(no subject)'}
                 </div>
 
+                {/* Snippet */}
                 <div style={{
-                  fontSize: 12,
-                  color: '#444',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
+                  fontSize: 11, color: '#444',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>
                   {email.snippet}
                 </div>
-
-                <div style={{ marginTop: 6 }}>
-                  <span style={{
-                    fontSize: 10,
-                    color: email.provider === 'gmail' ? '#ea433566' : '#0078d466',
-                    background: email.provider === 'gmail' ? 'rgba(234,67,53,0.08)' : 'rgba(0,120,212,0.08)',
-                    padding: '1px 6px',
-                    borderRadius: 10,
-                  }}>
-                    {email.provider}
-                  </span>
-                </div>
               </button>
-            );
-          })
+            ))}
+
+            {/* Load More */}
+            {hasMore && (
+              <div style={{ padding: '16px 20px', textAlign: 'center' }}>
+                <button
+                  onClick={onLoadMore}
+                  disabled={loadingMore}
+                  style={{
+                    padding: '8px 20px',
+                    background: 'var(--bg-3)',
+                    color: loadingMore ? 'var(--text-muted)' : 'var(--accent)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 6,
+                    fontSize: 12,
+                    cursor: loadingMore ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {loadingMore ? 'Loading...' : 'Load 50 more'}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
   );
+}
+
+function formatDate(dateStr: string) {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diff = now.getTime() - d.getTime();
+    const hours = diff / (1000 * 60 * 60);
+    if (hours < 24) return `about ${Math.round(hours)} hour${Math.round(hours) !== 1 ? 's' : ''} ago`;
+    const days = Math.floor(hours / 24);
+    if (days === 1) return 'yesterday';
+    if (days < 7) return `${days} days ago`;
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  } catch { return ''; }
 }
