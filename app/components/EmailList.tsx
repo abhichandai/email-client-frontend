@@ -43,6 +43,7 @@ export default function EmailList({ emails, loading, selected, onSelect, onRefre
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
+        background: 'linear-gradient(180deg, rgba(212,168,83,0.03) 0%, transparent 100%)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {isMobile && (

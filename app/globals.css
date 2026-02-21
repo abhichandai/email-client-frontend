@@ -2,25 +2,55 @@
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap');
 
 :root {
-  --bg:       #191919;
-  --bg-2:     #202020;
-  --bg-3:     #2f2f2f;
-  --border:   #2f2f2f;
-  --text:     #e3e3e3;
+  --bg:         #191919;
+  --bg-2:       #202020;
+  --bg-3:       #2f2f2f;
+  --border:     #2f2f2f;
+  --text:       #e3e3e3;
   --text-muted: #9b9a97;
-  --accent:   #d4a853;
-  --high:     #e05c5c;
-  --med:      #d4a853;
-  --low:      #555555;
+  --accent:     #d4a853;
+  --accent-dim: rgba(212,168,83,0.08);
+  --accent-glow:rgba(212,168,83,0.04);
+  --high:       #e05c5c;
+  --med:        #d4a853;
+  --low:        #555555;
 }
 
 * { box-sizing: border-box; }
+
 html, body {
   background: var(--bg);
   color: var(--text);
   font-family: 'DM Sans', sans-serif;
   -webkit-font-smoothing: antialiased;
+  height: 100%;
 }
+
+/* Subtle gold radial glow at top of app */
+body::before {
+  content: '';
+  position: fixed;
+  top: -200px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100vw;
+  height: 500px;
+  background: radial-gradient(ellipse at center, rgba(212,168,83,0.05) 0%, transparent 65%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Thin gold line at very top */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(212,168,83,0.4), transparent);
+  pointer-events: none;
+  z-index: 100;
+}
+
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }

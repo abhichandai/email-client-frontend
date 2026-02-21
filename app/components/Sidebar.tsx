@@ -36,11 +36,20 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts }: S
       flexShrink: 0,
     }}>
       {/* Logo */}
-      <div style={{ padding: '0 20px 24px', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ fontFamily: 'Instrument Serif, serif', fontSize: 20, color: '#d4a853', letterSpacing: '-0.5px' }}>
-          Inbox
+      <div style={{
+        padding: '0 20px 24px',
+        borderBottom: '1px solid var(--border)',
+        background: 'linear-gradient(180deg, rgba(212,168,83,0.04) 0%, transparent 100%)',
+      }}>
+        <div style={{
+          fontFamily: 'Instrument Serif, serif',
+          fontSize: 22,
+          letterSpacing: '-0.3px',
+          color: '#e3e3e3',
+        }}>
+          mail<span style={{ color: '#d4a853' }}>mfer</span>
         </div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Priority Mail</div>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, letterSpacing: '0.15em', textTransform: 'uppercase' }}>Priority Inbox</div>
       </div>
 
       {/* Compose */}
