@@ -28,8 +28,37 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const supabase = createClient();
 
-    // Auto-connect Gmail from Supabase Google session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    async function initAccounts() {
+      // Check if we just came back from OAuth with tokens in URL
+      const params = new URLSearchParams(window.location.search);
+      const pt = params.get('pt');
+      const prt = params.get('prt');
+      const ue = params.get('ue');
+      const uid = params.get('uid');
+
+      if (pt && ue && uid) {
+        // Fresh login - store the Gmail tokens
+        const gmailAccount: Account = {
+          id: uid,
+          provider: 'gmail',
+          email: ue,
+          tokens: {
+            access_token: pt,
+            refresh_token: prt || '',
+            token_type: 'Bearer',
+          },
+        };
+        setAccounts([gmailAccount]);
+        localStorage.setItem('email-accounts', JSON.stringify([gmailAccount]));
+
+        // Clean tokens from URL without reload
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, '', cleanUrl);
+        return;
+      }
+
+      // Try to get token from active Supabase session
+      const { data: { session } } = await supabase.auth.getSession();
       if (session?.provider_token && session.user?.email) {
         const gmailAccount: Account = {
           id: session.user.id,
@@ -37,17 +66,21 @@ export function AccountProvider({ children }: { children: ReactNode }) {
           email: session.user.email,
           tokens: {
             access_token: session.provider_token,
-            refresh_token: session.provider_refresh_token,
+            refresh_token: session.provider_refresh_token || '',
             token_type: 'Bearer',
           },
         };
         setAccounts([gmailAccount]);
         localStorage.setItem('email-accounts', JSON.stringify([gmailAccount]));
-      } else {
-        const stored = localStorage.getItem('email-accounts');
-        if (stored) setAccounts(JSON.parse(stored));
+        return;
       }
-    });
+
+      // Fall back to localStorage for returning users
+      const stored = localStorage.getItem('email-accounts');
+      if (stored) setAccounts(JSON.parse(stored));
+    }
+
+    initAccounts();
   }, []);
 
   const addAccount = (account: Account) => {
