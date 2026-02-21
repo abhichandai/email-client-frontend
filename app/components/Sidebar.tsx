@@ -19,6 +19,7 @@ interface SidebarProps {
   emailCounts: Record<string, number>;
   rules: PriorityRules;
   onSaveRules: (rules: PriorityRules) => void;
+  onForceRefresh: () => void;
   onForceSync: () => void;
 }
 
