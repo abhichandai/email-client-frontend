@@ -1,13 +1,13 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useAccounts } from '../../context/accounts';
-import { AccountProvider } from '../../context/accounts';
+import { AccountProvider, useAccounts } from '../../context/accounts';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-function CallbackPage() {
+function CallbackInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { addAccount } = useAccounts();
@@ -26,7 +26,6 @@ function CallbackPage() {
     try {
       const tokens = JSON.parse(decodeURIComponent(tokensRaw));
 
-      // Fetch user email
       fetch(`${API}/auth/${provider}/userinfo`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -44,7 +43,6 @@ function CallbackPage() {
           setTimeout(() => router.push('/'), 800);
         })
         .catch(() => {
-          // Fallback: save without email info
           addAccount({ id: accountId, provider, email: 'Account', tokens });
           setTimeout(() => router.push('/'), 800);
         });
@@ -75,7 +73,13 @@ function CallbackPage() {
 export default function AuthCallback() {
   return (
     <AccountProvider>
-      <CallbackPage />
+      <Suspense fallback={
+        <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0a0a0a', color: '#888' }}>
+          Loading...
+        </div>
+      }>
+        <CallbackInner />
+      </Suspense>
     </AccountProvider>
   );
 }
