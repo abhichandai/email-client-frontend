@@ -19,16 +19,16 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts }: S
   const [showAddMenu, setShowAddMenu] = useState(false);
 
   const filters: { key: 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW'; label: string; color: string }[] = [
-    { key: 'ALL', label: 'All Mail', color: '#e8e8e8' },
+    { key: 'ALL', label: 'All Mail', color: 'var(--text)' },
     { key: 'HIGH', label: 'Priority', color: '#e05c5c' },
     { key: 'MEDIUM', label: 'Important', color: '#d4a853' },
-    { key: 'LOW', label: 'Low', color: '#555555' },
+    { key: 'LOW', label: 'Low', color: 'var(--text-muted)' },
   ];
 
   return (
     <aside style={{
       width: 220,
-      background: 'var(--bg-2, #111)',
+      background: 'var(--bg-2)',
       borderRight: '1px solid var(--border)',
       display: 'flex',
       flexDirection: 'column',
@@ -40,7 +40,7 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts }: S
         <div style={{ fontFamily: 'Instrument Serif, serif', fontSize: 20, color: '#d4a853', letterSpacing: '-0.5px' }}>
           Inbox
         </div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted, #666)', marginTop: 2 }}>Priority Mail</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Priority Mail</div>
       </div>
 
       {/* Compose */}
@@ -78,7 +78,7 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts }: S
               justifyContent: 'space-between',
               padding: '8px 20px',
               background: filter === f.key ? 'rgba(212,168,83,0.08)' : 'transparent',
-              color: filter === f.key ? f.color : '#888',
+              color: filter === f.key ? f.color : 'var(--text-muted)',
               fontSize: 13,
               transition: 'all 0.1s',
               borderLeft: filter === f.key ? `2px solid ${f.color}` : '2px solid transparent',
@@ -102,43 +102,41 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts }: S
         <div style={{ padding: '0 20px 8px', fontSize: 11, color: '#444', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
           Accounts
         </div>
-        {accounts.map((acc) => (
-          <div
-            key={acc.id}
-            style={{
-              padding: '8px 20px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <div style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: acc.provider === 'gmail' ? '#ea4335' : '#0078d4',
-              flexShrink: 0,
-            }} />
-            <div style={{ flex: 1, overflow: 'hidden' }}>
-              <div style={{ fontSize: 12, color: '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {acc.email}
-              </div>
-            </div>
-            <button
-              onClick={() => removeAccount(acc.id)}
-              style={{ color: '#444', fontSize: 14, flexShrink: 0 }}
-              title="Remove account"
+        {accounts.map((acc) => {
+          const hasToken = !!(acc.tokens?.access_token);
+          return (
+            <div
+              key={acc.id}
+              style={{ padding: '8px 20px', display: 'flex', alignItems: 'center', gap: 8 }}
             >
-              ×
-            </button>
-          </div>
-        ))}
+              <div style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: hasToken ? '#4caf82' : '#666',
+                flexShrink: 0,
+              }} title={hasToken ? 'Connected' : 'Not connected'} />
+              <div style={{ flex: 1, overflow: 'hidden' }}>
+                <div style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {acc.email}
+                </div>
+              </div>
+              <button
+                onClick={() => removeAccount(acc.id)}
+                style={{ color: '#444', fontSize: 14, flexShrink: 0 }}
+                title="Remove account"
+              >
+                ×
+              </button>
+            </div>
+          );
+        })}
 
         {/* Add account */}
         <div style={{ padding: '8px 20px', position: 'relative' }}>
           <button
             onClick={() => setShowAddMenu(!showAddMenu)}
-            style={{ fontSize: 12, color: '#666', display: 'flex', alignItems: 'center', gap: 6 }}
+            style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}
           >
             <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> Add account
           </button>
@@ -147,8 +145,8 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts }: S
               position: 'absolute',
               left: 20,
               top: '100%',
-              background: '#1a1a1a',
-              border: '1px solid #333',
+              background: 'var(--bg-3)',
+              border: '1px solid var(--border)',
               borderRadius: 8,
               overflow: 'hidden',
               zIndex: 50,
@@ -157,16 +155,16 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts }: S
             }}>
               <a
                 href={`${API}/auth/gmail/login?accountId=${Date.now()}`}
-                style={{ display: 'block', padding: '10px 16px', fontSize: 13, color: '#ccc', borderBottom: '1px solid #222' }}
-                onMouseOver={(e) => (e.currentTarget.style.background = '#222')}
+                style={{ display: 'block', padding: '10px 16px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' }}
+                onMouseOver={(e) => (e.currentTarget.style.background = 'var(--bg-2)')}
                 onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
               >
                 Gmail
               </a>
               <a
                 href={`${API}/auth/outlook/login?accountId=${Date.now()}`}
-                style={{ display: 'block', padding: '10px 16px', fontSize: 13, color: '#ccc' }}
-                onMouseOver={(e) => (e.currentTarget.style.background = '#222')}
+                style={{ display: 'block', padding: '10px 16px', fontSize: 13, color: 'var(--text)' }}
+                onMouseOver={(e) => (e.currentTarget.style.background = 'var(--bg-2)')}
                 onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
               >
                 Outlook
@@ -182,11 +180,12 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts }: S
           onClick={async () => {
             const supabase = createClient();
             await supabase.auth.signOut();
+            localStorage.removeItem('email-accounts');
             window.location.href = '/login';
           }}
-          style={{ fontSize: 12, color: '#444', display: 'flex', alignItems: 'center', gap: 6 }}
-          onMouseOver={(e) => (e.currentTarget.style.color = '#888')}
-          onMouseOut={(e) => (e.currentTarget.style.color = '#444')}
+          style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}
+          onMouseOver={(e) => (e.currentTarget.style.color = 'var(--text)')}
+          onMouseOut={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
         >
           Sign out
         </button>
