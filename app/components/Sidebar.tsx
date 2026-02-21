@@ -14,7 +14,7 @@ interface PriorityRules {
 interface SidebarProps {
   accounts: Account[];
   filter: string;
-  setFilter: (f: 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW') => void;
+  setFilter: (f: 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'CALENDAR') => void;
   onCompose: () => void;
   emailCounts: Record<string, number>;
   rules: PriorityRules;
@@ -31,11 +31,12 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts, rul
   const [input, setInput] = useState('');
   const [ruleType, setRuleType] = useState<keyof PriorityRules>('importantSenders');
 
-  const filters: { key: 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW'; label: string; color: string }[] = [
+  const filters: { key: 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'CALENDAR'; label: string; color: string }[] = [
     { key: 'ALL', label: 'All Mail', color: 'var(--text)' },
     { key: 'HIGH', label: 'Priority', color: '#e05c5c' },
     { key: 'MEDIUM', label: 'Important', color: '#d4a853' },
     { key: 'LOW', label: 'Low', color: 'var(--text-muted)' },
+    { key: 'CALENDAR', label: '📅 Calendar', color: '#7ab3d4' },
   ];
 
   const addRule = () => {

@@ -124,6 +124,15 @@ export default function EmailList({
                     }}>
                       {email.from?.replace(/<.*>/, '').trim() || 'Unknown'}
                     </span>
+                    {(email.threadCount ?? 1) > 1 && (
+                      <span style={{
+                        fontSize: 10, color: 'var(--text-muted)',
+                        background: 'var(--bg-3)', border: '1px solid var(--border)',
+                        padding: '1px 5px', borderRadius: 8, flexShrink: 0,
+                      }}>
+                        {email.threadCount}
+                      </span>
+                    )}
                   </div>
                   <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0, marginLeft: 8 }}>
                     {formatDate(email.date)}

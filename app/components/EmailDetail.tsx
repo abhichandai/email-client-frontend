@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Email } from '../types';
 import { useAccounts } from '../context/accounts';
 
@@ -11,6 +11,7 @@ interface EmailDetailProps {
   isMobile?: boolean;
   onEmailUpdate?: (updated: Partial<Email> & { id: string }) => void;
   onBulkUpdate?: (emails: Email[]) => void;
+  accessToken?: string;
 }
 
 const PRIORITY_OPTIONS = [
@@ -19,12 +20,166 @@ const PRIORITY_OPTIONS = [
   { value: 'LOW', label: 'Low', color: '#666' },
 ];
 
-export default function EmailDetail({ email, onReply, onClose, isMobile, onEmailUpdate, onBulkUpdate }: EmailDetailProps) {
+function EmailBodyFrame({ html }: { html: string }) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [height, setHeight] = useState(400);
+
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) return;
+    doc.open();
+    doc.write(`<!DOCTYPE html><html><head><style>
+      body { margin: 0; padding: 0; font-family: -apple-system, sans-serif; font-size: 14px;
+             line-height: 1.6; color: #ccc; background: transparent; word-wrap: break-word; }
+      a { color: #d4a853; }
+      img { max-width: 100%; height: auto; }
+      blockquote { border-left: 2px solid #333; margin: 8px 0; padding-left: 12px; color: #666; }
+      pre, code { background: #111; padding: 2px 6px; border-radius: 3px; font-size: 12px; }
+    </style></head><body>${html}</body></html>`);
+    doc.close();
+    const resize = () => {
+      if (iframe.contentDocument?.body) {
+        setHeight(iframe.contentDocument.body.scrollHeight + 24);
+      }
+    };
+    setTimeout(resize, 100);
+    iframe.addEventListener('load', resize);
+    return () => iframe.removeEventListener('load', resize);
+  }, [html]);
+
+  return (
+    <iframe
+      ref={iframeRef}
+      style={{ width: '100%', height, border: 'none', display: 'block', background: 'transparent' }}
+      sandbox="allow-same-origin"
+      title="email body"
+    />
+  );
+}
+
+function SingleEmail({
+  email,
+  isExpanded,
+  onToggle,
+  accessToken,
+  onEmailUpdate,
+  onReply,
+  showPriorityControls,
+}: {
+  email: Email;
+  isExpanded: boolean;
+  onToggle: () => void;
+  accessToken?: string;
+  onEmailUpdate?: (updated: Partial<Email> & { id: string }) => void;
+  onReply: (email: Email) => void;
+  showPriorityControls?: boolean;
+}) {
+  const [body, setBody] = useState(email.body || '');
+  const [bodyHtml, setBodyHtml] = useState(email.bodyHtml || '');
+  const [loadingBody, setLoadingBody] = useState(false);
+
+  useEffect(() => {
+    if (!isExpanded || body || bodyHtml || !accessToken) return;
+    setLoadingBody(true);
+    fetch('/api/email/body', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emailId: email.id, accessToken }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.body) setBody(data.body);
+        if (data.bodyHtml) setBodyHtml(data.bodyHtml);
+        if (data.body || data.bodyHtml) {
+          onEmailUpdate?.({ id: email.id, body: data.body, bodyHtml: data.bodyHtml });
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingBody(false));
+  }, [isExpanded, email.id, accessToken, body, bodyHtml, onEmailUpdate]);
+
+  const senderName = email.from?.replace(/<.*>/, '').trim().replace(/^"|"$/g, '') || 'Unknown';
+  const senderEmail = email.from?.match(/<(.+)>/)?.[1] || email.from || '';
+  const timestamp = email.date
+    ? new Date(email.date).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    : '';
+
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', marginBottom: 8 }}>
+      {/* Header row — always visible, click to expand/collapse */}
+      <button
+        onClick={onToggle}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+          padding: '12px 16px', background: isExpanded ? 'var(--bg-2)' : 'var(--bg-3)',
+          textAlign: 'left',
+        }}
+      >
+        <div style={{
+          width: 32, height: 32, borderRadius: '50%', background: 'rgba(212,168,83,0.15)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#d4a853', fontSize: 13, fontWeight: 600, flexShrink: 0,
+        }}>
+          {senderName[0]?.toUpperCase() || '?'}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{senderName}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{senderEmail}</div>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{timestamp}</div>
+        <span style={{ fontSize: 10, color: '#555', marginLeft: 4 }}>{isExpanded ? '▲' : '▼'}</span>
+      </button>
+
+      {/* Body — visible when expanded */}
+      {isExpanded && (
+        <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border)', background: 'var(--bg)' }}>
+          {loadingBody ? (
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '20px 0' }}>Loading email...</div>
+          ) : bodyHtml ? (
+            <EmailBodyFrame html={bodyHtml} />
+          ) : body ? (
+            <pre style={{ fontSize: 13, lineHeight: 1.7, color: '#ccc', whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0 }}>
+              {body}
+            </pre>
+          ) : (
+            <p style={{ fontSize: 13, color: '#555', fontStyle: 'italic' }}>{email.snippet || 'No content available.'}</p>
+          )}
+
+          {/* Reply button */}
+          <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+            <button onClick={() => onReply(email)} style={{
+              padding: '6px 16px', background: '#d4a853', color: '#0a0a0a',
+              borderRadius: 6, fontSize: 12, fontWeight: 500,
+            }}>Reply</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function EmailDetail({
+  email, onReply, onClose, isMobile, onEmailUpdate, onBulkUpdate, accessToken,
+}: EmailDetailProps) {
   const { accounts } = useAccounts();
   const [showPriorityMenu, setShowPriorityMenu] = useState(false);
   const [savingPriority, setSavingPriority] = useState(false);
   const [localPriority, setLocalPriority] = useState<string | null>(null);
   const [localIsRead, setLocalIsRead] = useState<boolean | null>(null);
+  // Track which thread email is expanded (by id). Default: open the latest (first).
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  // When the selected email changes, reset expanded state to open only the latest
+  useEffect(() => {
+    if (email) {
+      const threads = email.threadEmails || [email];
+      setExpandedIds(new Set([threads[0].id]));
+      setLocalPriority(null);
+      setLocalIsRead(null);
+    }
+  }, [email?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!email) {
     if (isMobile) return null;
@@ -39,9 +194,10 @@ export default function EmailDetail({ email, onReply, onClose, isMobile, onEmail
   const priority = localPriority || email.priority || 'MEDIUM';
   const isRead = localIsRead !== null ? localIsRead : email.isRead;
   const priorityConfig = PRIORITY_OPTIONS.find(p => p.value === priority) || PRIORITY_OPTIONS[1];
-  const accessToken = accounts[0]?.tokens?.access_token;
+  const token = accessToken || accounts[0]?.tokens?.access_token;
   const senderEmail = email.from?.match(/<(.+)>/)?.[1] || email.from || '';
-  const senderName = email.from?.replace(/<.*>/, '').trim() || 'Unknown';
+  const senderName = email.from?.replace(/<.*>/, '').trim().replace(/^"|"$/g, '') || 'Unknown';
+  const threadEmails = email.threadEmails || [email];
 
   const setPriority = async (newPriority: string, addToRules: boolean) => {
     setSavingPriority(true);
@@ -54,9 +210,7 @@ export default function EmailDetail({ email, onReply, onClose, isMobile, onEmail
         body: JSON.stringify({ emailId: email.id, priority: newPriority, senderEmail, addToRules }),
       });
       const data = await res.json();
-
       if (addToRules && data.updatedEmails) {
-        // Bulk update all emails in state — no resync needed
         onBulkUpdate?.(data.updatedEmails);
       } else {
         onEmailUpdate?.({ id: email.id, priority: newPriority as Email['priority'] });
@@ -72,9 +226,17 @@ export default function EmailDetail({ email, onReply, onClose, isMobile, onEmail
     await fetch('/api/email/read', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emailId: email.id, isRead: newIsRead, accessToken }),
+      body: JSON.stringify({ emailId: email.id, isRead: newIsRead, accessToken: token }),
     });
     onEmailUpdate?.({ id: email.id, isRead: newIsRead });
+  };
+
+  const toggleThread = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
   };
 
   return (
@@ -93,10 +255,9 @@ export default function EmailDetail({ email, onReply, onClose, isMobile, onEmail
             onClick={() => setShowPriorityMenu(!showPriorityMenu)}
             disabled={savingPriority}
             style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '5px 10px', background: 'var(--bg-2)',
-              border: `1px solid ${priorityConfig.color}40`, borderRadius: 6,
-              color: priorityConfig.color, fontSize: 12, fontWeight: 500,
+              display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px',
+              background: 'var(--bg-2)', border: `1px solid ${priorityConfig.color}40`,
+              borderRadius: 6, color: priorityConfig.color, fontSize: 12, fontWeight: 500,
             }}
           >
             <div style={{ width: 7, height: 7, borderRadius: '50%', background: priorityConfig.color }} />
@@ -115,8 +276,7 @@ export default function EmailDetail({ email, onReply, onClose, isMobile, onEmail
                 This email only
               </div>
               {PRIORITY_OPTIONS.map(opt => (
-                <button key={opt.value}
-                  onClick={() => setPriority(opt.value, false)}
+                <button key={opt.value} onClick={() => setPriority(opt.value, false)}
                   style={{ width: '100%', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: opt.color, textAlign: 'left' }}
                   onMouseOver={e => (e.currentTarget.style.background = 'var(--bg-2)')}
                   onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
@@ -125,15 +285,12 @@ export default function EmailDetail({ email, onReply, onClose, isMobile, onEmail
                   {opt.label}
                 </button>
               ))}
-
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
-
               <div style={{ padding: '6px 12px 4px', fontSize: 10, color: '#555', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                 Always for {senderName.split(' ')[0]} — updates all their emails
               </div>
               {PRIORITY_OPTIONS.map(opt => (
-                <button key={opt.value + '-rule'}
-                  onClick={() => setPriority(opt.value, true)}
+                <button key={opt.value + '-rule'} onClick={() => setPriority(opt.value, true)}
                   style={{ width: '100%', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: opt.color, textAlign: 'left' }}
                   onMouseOver={e => (e.currentTarget.style.background = 'var(--bg-2)')}
                   onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
@@ -158,54 +315,46 @@ export default function EmailDetail({ email, onReply, onClose, isMobile, onEmail
         </button>
 
         <div style={{ flex: 1 }} />
-        <button onClick={() => onReply(email)} style={{
-          padding: '5px 14px', background: '#d4a853', color: '#0a0a0a', borderRadius: 6, fontSize: 12, fontWeight: 500,
-        }}>Reply</button>
+
+        {/* Thread count badge */}
+        {threadEmails.length > 1 && (
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-3)', border: '1px solid var(--border)', padding: '3px 8px', borderRadius: 10 }}>
+            {threadEmails.length} messages
+          </span>
+        )}
       </div>
 
-      {/* Email content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '20px 16px' : '28px 32px' }}>
-        <div style={{ maxWidth: 680 }}>
-          <h2 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 600, color: 'var(--text)', lineHeight: 1.3, marginBottom: 20, fontFamily: 'Instrument Serif, serif' }}>
-            {email.subject || '(no subject)'}
-          </h2>
-
+      {/* Subject */}
+      <div style={{ padding: '20px 24px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--text)', lineHeight: 1.3, fontFamily: 'Instrument Serif, serif', margin: 0 }}>
+          {email.subject || '(no subject)'}
+        </h2>
+        {email.reason && (
           <div style={{
-            display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 24,
-            padding: '14px 16px', background: 'var(--bg-2)', borderRadius: 8, border: '1px solid var(--border)',
+            marginTop: 10, padding: '8px 12px',
+            background: `${priorityConfig.color}10`, border: `1px solid ${priorityConfig.color}25`,
+            borderRadius: 6, fontSize: 12, color: priorityConfig.color,
+            display: 'flex', alignItems: 'center', gap: 8,
           }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: '50%', background: 'rgba(212,168,83,0.15)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#d4a853', fontSize: 15, fontWeight: 600, flexShrink: 0,
-            }}>
-              {senderName[0]?.toUpperCase() || '?'}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{senderName}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{senderEmail}</div>
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>
-              {email.date ? new Date(email.date).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}
-            </div>
+            <span>⚡</span><span>{email.reason}</span>
           </div>
+        )}
+      </div>
 
-          {email.reason && (
-            <div style={{
-              padding: '10px 14px', marginBottom: 20,
-              background: `${priorityConfig.color}10`, border: `1px solid ${priorityConfig.color}25`,
-              borderRadius: 6, fontSize: 12, color: priorityConfig.color,
-              display: 'flex', alignItems: 'center', gap: 8,
-            }}>
-              <span>⚡</span><span>{email.reason}</span>
-            </div>
-          )}
-
-          <div style={{ fontSize: 14, lineHeight: 1.8, color: '#aaa', padding: '20px 0', borderTop: '1px solid var(--border)' }}>
-            <p style={{ marginBottom: 12 }}>{email.snippet}</p>
-            <p style={{ fontSize: 12, color: '#444', marginTop: 24 }}>Full email body coming soon — this is the preview snippet.</p>
-          </div>
-        </div>
+      {/* Thread emails */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
+        {threadEmails.map((threadEmail, idx) => (
+          <SingleEmail
+            key={threadEmail.id}
+            email={threadEmail}
+            isExpanded={expandedIds.has(threadEmail.id)}
+            onToggle={() => toggleThread(threadEmail.id)}
+            accessToken={token}
+            onEmailUpdate={onEmailUpdate}
+            onReply={onReply}
+            showPriorityControls={idx === 0}
+          />
+        ))}
       </div>
     </div>
   );

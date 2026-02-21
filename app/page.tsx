@@ -1,20 +1,39 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { AccountProvider, useAccounts } from './context/accounts';
 import Sidebar from './components/Sidebar';
 import EmailList from './components/EmailList';
 import EmailDetail from './components/EmailDetail';
 import ComposeModal from './components/ComposeModal';
-import { Email } from './types';
+import { Email, isCalendarEmail } from './types';
 
 type MobileView = 'list' | 'detail';
+export type FilterType = 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'CALENDAR';
 
 interface PriorityRules {
   importantSenders: string[];
   importantDomains: string[];
   importantKeywords: string[];
   unimportantSenders: string[];
+}
+
+// Group flat email list into threads — one entry per thread, latest email on top
+function groupIntoThreads(emails: Email[]): Email[] {
+  const threadMap = new Map<string, Email[]>();
+  for (const email of emails) {
+    const key = email.threadId || email.id;
+    if (!threadMap.has(key)) threadMap.set(key, []);
+    threadMap.get(key)!.push(email);
+  }
+  return Array.from(threadMap.values())
+    .map(group => {
+      const sorted = [...group].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      return { ...sorted[0], threadCount: sorted.length, threadEmails: sorted };
+    })
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
 
 function InboxApp() {
@@ -24,14 +43,16 @@ function InboxApp() {
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
-  const [filter, setFilter] = useState<'ALL' | 'HIGH' | 'MEDIUM' | 'LOW'>('ALL');
+  const [filter, setFilter] = useState<FilterType>('ALL');
   const [composing, setComposing] = useState(false);
   const [replyTo, setReplyTo] = useState<Email | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileView, setMobileView] = useState<MobileView>('list');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
-  const [rules, setRules] = useState<PriorityRules>({ importantSenders: [], importantDomains: [], importantKeywords: [], unimportantSenders: [] });
+  const [rules, setRules] = useState<PriorityRules>({
+    importantSenders: [], importantDomains: [], importantKeywords: [], unimportantSenders: [],
+  });
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -40,23 +61,20 @@ function InboxApp() {
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  // Update a single email in state
   const updateEmail = useCallback((updated: Partial<Email> & { id: string }) => {
     setEmails(prev => prev.map(e => e.id === updated.id ? { ...e, ...updated } : e));
     setSelected(prev => prev?.id === updated.id ? { ...prev, ...updated } : prev);
   }, []);
 
-  // Replace all emails with fresh DB snapshot (used after sender priority change)
   const bulkUpdateEmails = useCallback((freshEmails: Email[]) => {
     setEmails(freshEmails);
-    // Update selected email too if it's in the new list
     setSelected(prev => prev ? (freshEmails.find(e => e.id === prev.id) || prev) : null);
   }, []);
 
-  const fetchEmails = useCallback(async (pageToken?: string, forceRefresh = false) => {
-    if (!accounts.length) { setError('No accounts connected.'); return; }
-
-    pageToken ? setLoadingMore(true) : setLoading(true);
+  // POST /api/inbox — syncs from Gmail, showSpinner=false for background updates
+  const syncFromGmail = useCallback(async (showSpinner = true, pageToken?: string, forceRefresh = false) => {
+    if (!accounts.length) return;
+    if (showSpinner) pageToken ? setLoadingMore(true) : setLoading(true);
     setError('');
     try {
       const res = await fetch('/api/inbox', {
@@ -66,25 +84,22 @@ function InboxApp() {
       });
       const data = await res.json();
       if (data.error) {
-        setError('Error: ' + data.error);
+        if (showSpinner) setError('Error: ' + data.error);
       } else {
         if (pageToken) {
           setEmails(prev => [...prev, ...(data.emails || [])]);
         } else {
           setEmails(data.emails || []);
-          if (data.fromCache) setError(''); // clear any errors, loaded from cache
         }
         setNextPageToken(data.nextPageToken || null);
       }
     } catch (e) {
-      setError('Could not reach backend: ' + String(e));
+      if (showSpinner) setError('Could not reach backend: ' + String(e));
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
+      if (showSpinner) { setLoading(false); setLoadingMore(false); }
     }
   }, [accounts, rules]);
 
-  // Load rules from DB on mount
   useEffect(() => {
     fetch('/api/rules').then(r => r.json()).then(data => {
       if (data?.important_senders) {
@@ -98,7 +113,29 @@ function InboxApp() {
     }).catch(() => {});
   }, []);
 
-  useEffect(() => { if (accounts.length) fetchEmails(); }, [accounts]);
+  // On accounts ready: load DB instantly (no spinner), then sync Gmail in background
+  useEffect(() => {
+    if (!accounts.length) return;
+    (async () => {
+      try {
+        const res = await fetch('/api/inbox');
+        const data = await res.json();
+        if (data.emails?.length) {
+          setEmails(data.emails);
+          syncFromGmail(false); // silent background sync
+          return;
+        }
+      } catch {}
+      syncFromGmail(true); // no DB data yet, show spinner
+    })();
+  }, [accounts]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Background polling every 3 minutes
+  useEffect(() => {
+    if (!accounts.length) return;
+    const interval = setInterval(() => syncFromGmail(false), 3 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [accounts, syncFromGmail]);
 
   const saveRules = async (newRules: PriorityRules) => {
     setRules(newRules);
@@ -111,7 +148,6 @@ function InboxApp() {
   const handleSelectEmail = (email: Email) => {
     setSelected(email);
     if (isMobile) setMobileView('detail');
-    // Auto mark as read
     if (!email.isRead) {
       updateEmail({ id: email.id, isRead: true });
       const accessToken = accounts[0]?.tokens?.access_token;
@@ -122,7 +158,21 @@ function InboxApp() {
     }
   };
 
-  const filtered = filter === 'ALL' ? emails : emails.filter(e => e.priority === filter);
+  const filtered = useMemo(() => {
+    if (filter === 'CALENDAR') return emails.filter(isCalendarEmail);
+    if (filter !== 'ALL') return emails.filter(e => e.priority === filter);
+    return emails;
+  }, [emails, filter]);
+
+  const threads = useMemo(() => groupIntoThreads(filtered), [filtered]);
+
+  const emailCounts = useMemo(() => ({
+    ALL: emails.length,
+    HIGH: emails.filter(e => e.priority === 'HIGH').length,
+    MEDIUM: emails.filter(e => e.priority === 'MEDIUM').length,
+    LOW: emails.filter(e => e.priority === 'LOW').length,
+    CALENDAR: emails.filter(isCalendarEmail).length,
+  }), [emails]);
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)', position: 'relative' }}>
@@ -139,17 +189,12 @@ function InboxApp() {
       }}>
         <Sidebar
           accounts={accounts} filter={filter}
-          setFilter={(f) => { setFilter(f); if (isMobile) setSidebarOpen(false); }}
+          setFilter={(f) => { setFilter(f as FilterType); if (isMobile) setSidebarOpen(false); }}
           onCompose={() => { setReplyTo(null); setComposing(true); setSidebarOpen(false); }}
-          emailCounts={{
-            ALL: emails.length,
-            HIGH: emails.filter(e => e.priority === 'HIGH').length,
-            MEDIUM: emails.filter(e => e.priority === 'MEDIUM').length,
-            LOW: emails.filter(e => e.priority === 'LOW').length,
-          }}
+          emailCounts={emailCounts}
           rules={rules}
           onSaveRules={saveRules}
-          onForceRefresh={() => fetchEmails(undefined, true)}
+          onForceRefresh={() => syncFromGmail(true, undefined, true)}
         />
       </div>
 
@@ -159,7 +204,6 @@ function InboxApp() {
             {error}
           </div>
         )}
-
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           <div style={{
             display: isMobile && mobileView === 'detail' ? 'none' : 'flex',
@@ -167,17 +211,16 @@ function InboxApp() {
             width: isMobile ? '100%' : 360, overflow: 'hidden',
           }}>
             <EmailList
-              emails={filtered} loading={loading} selected={selected}
+              emails={threads} loading={loading} selected={selected}
               onSelect={handleSelectEmail}
-              onRefresh={() => fetchEmails(undefined, true)}
+              onRefresh={() => syncFromGmail(true, undefined, true)}
               isMobile={isMobile} onMenuOpen={() => setSidebarOpen(true)}
               loadingMore={loadingMore} hasMore={!!nextPageToken}
-              onLoadMore={() => fetchEmails(nextPageToken!)}
+              onLoadMore={() => syncFromGmail(true, nextPageToken!)}
               onEmailUpdate={updateEmail}
               onBulkUpdate={bulkUpdateEmails}
             />
           </div>
-
           <div style={{ display: isMobile && mobileView !== 'detail' ? 'none' : 'flex', flex: 1, overflow: 'hidden' }}>
             <EmailDetail
               email={selected}
@@ -186,6 +229,7 @@ function InboxApp() {
               isMobile={isMobile}
               onEmailUpdate={updateEmail}
               onBulkUpdate={bulkUpdateEmails}
+              accessToken={accounts[0]?.tokens?.access_token}
             />
           </div>
         </div>

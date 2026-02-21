@@ -28,6 +28,8 @@ function mapDbEmail(row: Record<string, unknown>) {
     subject: row.subject,
     date: row.date,
     snippet: row.snippet,
+    body: row.body || undefined,
+    bodyHtml: row.body_html || undefined,
     isRead: row.is_read,
     threadId: row.thread_id,
     accountEmail: row.account_email,
