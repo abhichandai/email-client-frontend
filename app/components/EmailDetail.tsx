@@ -6,6 +6,7 @@ interface EmailDetailProps {
   email: Email | null;
   onReply: (email: Email) => void;
   onClose: () => void;
+  isMobile?: boolean;
 }
 
 function parseFrom(from: string) {
@@ -20,8 +21,9 @@ const priorityColors: Record<string, { bg: string; color: string; label: string 
   LOW: { bg: 'rgba(255,255,255,0.04)', color: '#555', label: 'Low' },
 };
 
-export default function EmailDetail({ email, onReply, onClose }: EmailDetailProps) {
+export default function EmailDetail({ email, onReply, onClose, isMobile }: EmailDetailProps) {
   if (!email) {
+    if (isMobile) return null;
     return (
       <div style={{
         flex: 1,
@@ -42,16 +44,26 @@ export default function EmailDetail({ email, onReply, onClose }: EmailDetailProp
   const p = priorityColors[email.priority];
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', width: '100%' }}>
       {/* Top bar */}
       <div style={{
-        padding: '16px 28px',
+        padding: isMobile ? '14px 16px' : '16px 28px',
         borderBottom: '1px solid var(--border)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
+        gap: 12,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
+          {/* Back button on mobile */}
+          {isMobile && (
+            <button
+              onClick={onClose}
+              style={{ color: '#888', fontSize: 20, flexShrink: 0, padding: '2px 4px' }}
+            >
+              ←
+            </button>
+          )}
           <span style={{
             fontSize: 11,
             padding: '2px 10px',
@@ -59,44 +71,46 @@ export default function EmailDetail({ email, onReply, onClose }: EmailDetailProp
             background: p.bg,
             color: p.color,
             fontWeight: 500,
+            flexShrink: 0,
           }}>
             {p.label}
           </span>
-          {email.priorityReason && (
-            <span style={{ fontSize: 12, color: '#444', fontStyle: 'italic' }}>
+          {email.priorityReason && !isMobile && (
+            <span style={{ fontSize: 12, color: '#444', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {email.priorityReason}
             </span>
           )}
         </div>
-        <button
-          onClick={onClose}
-          style={{ color: '#444', fontSize: 18, padding: 4 }}
-          onMouseOver={(e) => (e.currentTarget.style.color = '#888')}
-          onMouseOut={(e) => (e.currentTarget.style.color = '#444')}
-        >
-          ×
-        </button>
+        {!isMobile && (
+          <button
+            onClick={onClose}
+            style={{ color: '#444', fontSize: 18, padding: 4, flexShrink: 0 }}
+            onMouseOver={(e) => (e.currentTarget.style.color = '#888')}
+            onMouseOut={(e) => (e.currentTarget.style.color = '#444')}
+          >
+            ×
+          </button>
+        )}
       </div>
 
       {/* Email header */}
-      <div style={{ padding: '24px 28px 20px', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ padding: isMobile ? '16px' : '24px 28px 20px', borderBottom: '1px solid var(--border)' }}>
         <h2 style={{
-          fontSize: 20,
+          fontSize: isMobile ? 17 : 20,
           fontFamily: 'Instrument Serif, serif',
           fontWeight: 400,
           color: '#e8e8e8',
-          marginBottom: 16,
+          marginBottom: 14,
           lineHeight: 1.3,
         }}>
           {email.subject || '(no subject)'}
         </h2>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {/* Avatar */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
-              width: 36,
-              height: 36,
+              width: 34,
+              height: 34,
               borderRadius: '50%',
               background: 'linear-gradient(135deg, #d4a853, #8b6914)',
               display: 'flex',
@@ -121,7 +135,7 @@ export default function EmailDetail({ email, onReply, onClose }: EmailDetailProp
       </div>
 
       {/* Body */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '16px' : '24px 28px' }}>
         <div style={{
           fontSize: 14,
           color: '#aaa',
@@ -139,15 +153,16 @@ export default function EmailDetail({ email, onReply, onClose }: EmailDetailProp
 
       {/* Actions */}
       <div style={{
-        padding: '16px 28px',
+        padding: isMobile ? '12px 16px' : '16px 28px',
         borderTop: '1px solid var(--border)',
         display: 'flex',
         gap: 10,
+        alignItems: 'center',
       }}>
         <button
           onClick={() => onReply(email)}
           style={{
-            padding: '8px 20px',
+            padding: isMobile ? '10px 24px' : '8px 20px',
             background: '#d4a853',
             color: '#0a0a0a',
             borderRadius: 6,
@@ -161,29 +176,28 @@ export default function EmailDetail({ email, onReply, onClose }: EmailDetailProp
         </button>
         <button
           style={{
-            padding: '8px 20px',
+            padding: isMobile ? '10px 24px' : '8px 20px',
             background: 'rgba(255,255,255,0.05)',
             color: '#888',
             borderRadius: 6,
             fontSize: 13,
             border: '1px solid #222',
           }}
-          onMouseOver={(e) => (e.currentTarget.style.color = '#ccc')}
-          onMouseOut={(e) => (e.currentTarget.style.color = '#888')}
         >
           Forward
         </button>
-        <span style={{
-          fontSize: 11,
-          marginLeft: 'auto',
-          color: '#333',
-          alignSelf: 'center',
-          background: 'rgba(255,255,255,0.03)',
-          padding: '4px 10px',
-          borderRadius: 10,
-        }}>
-          via {email.provider} · {email.accountEmail}
-        </span>
+        {!isMobile && (
+          <span style={{
+            fontSize: 11,
+            marginLeft: 'auto',
+            color: '#333',
+            background: 'rgba(255,255,255,0.03)',
+            padding: '4px 10px',
+            borderRadius: 10,
+          }}>
+            via {email.provider} · {email.accountEmail}
+          </span>
+        )}
       </div>
     </div>
   );

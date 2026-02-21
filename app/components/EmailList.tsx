@@ -9,6 +9,8 @@ interface EmailListProps {
   selected: Email | null;
   onSelect: (email: Email) => void;
   onRefresh: () => void;
+  isMobile?: boolean;
+  onMenuOpen?: () => void;
 }
 
 const priorityDot: Record<string, string> = {
@@ -23,15 +25,16 @@ function parseFrom(from: string) {
   return { name: from, email: from };
 }
 
-export default function EmailList({ emails, loading, selected, onSelect, onRefresh }: EmailListProps) {
+export default function EmailList({ emails, loading, selected, onSelect, onRefresh, isMobile, onMenuOpen }: EmailListProps) {
   return (
     <div style={{
-      width: 360,
-      borderRight: '1px solid var(--border)',
+      width: isMobile ? '100%' : 360,
+      borderRight: isMobile ? 'none' : '1px solid var(--border)',
       display: 'flex',
       flexDirection: 'column',
       flexShrink: 0,
       overflow: 'hidden',
+      flex: isMobile ? 1 : 'none',
     }}>
       {/* Header */}
       <div style={{
@@ -41,8 +44,18 @@ export default function EmailList({ emails, loading, selected, onSelect, onRefre
         alignItems: 'center',
         justifyContent: 'space-between',
       }}>
-        <div style={{ fontSize: 13, color: '#666' }}>
-          {loading ? 'Loading...' : `${emails.length} messages`}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {isMobile && (
+            <button
+              onClick={onMenuOpen}
+              style={{ color: '#666', fontSize: 20, padding: '2px 4px', lineHeight: 1 }}
+            >
+              ☰
+            </button>
+          )}
+          <div style={{ fontSize: 13, color: '#666' }}>
+            {loading ? 'Loading...' : `${emails.length} messages`}
+          </div>
         </div>
         <button
           onClick={onRefresh}
@@ -78,7 +91,7 @@ export default function EmailList({ emails, loading, selected, onSelect, onRefre
                 style={{
                   width: '100%',
                   textAlign: 'left',
-                  padding: '14px 20px',
+                  padding: isMobile ? '16px 20px' : '14px 20px',
                   background: isSelected ? 'rgba(212,168,83,0.06)' : 'transparent',
                   borderBottom: '1px solid var(--border)',
                   borderLeft: isSelected ? '2px solid #d4a853' : '2px solid transparent',
@@ -86,21 +99,18 @@ export default function EmailList({ emails, loading, selected, onSelect, onRefre
                   cursor: 'pointer',
                   display: 'block',
                 }}
-                onMouseOver={(e) => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
-                onMouseOut={(e) => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
               >
-                {/* Row top */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
                     <div style={{
-                      width: 6,
-                      height: 6,
+                      width: 7,
+                      height: 7,
                       borderRadius: '50%',
                       background: priorityDot[email.priority],
                       flexShrink: 0,
                     }} />
                     <span style={{
-                      fontSize: 13,
+                      fontSize: isMobile ? 14 : 13,
                       fontWeight: email.isRead ? 400 : 600,
                       color: email.isRead ? '#888' : '#e8e8e8',
                       overflow: 'hidden',
@@ -112,18 +122,14 @@ export default function EmailList({ emails, loading, selected, onSelect, onRefre
                   </div>
                   <span style={{ fontSize: 11, color: '#555', flexShrink: 0, marginLeft: 8 }}>
                     {(() => {
-                      try {
-                        return formatDistanceToNow(new Date(email.date), { addSuffix: true });
-                      } catch {
-                        return '';
-                      }
+                      try { return formatDistanceToNow(new Date(email.date), { addSuffix: true }); }
+                      catch { return ''; }
                     })()}
                   </span>
                 </div>
 
-                {/* Subject */}
                 <div style={{
-                  fontSize: 13,
+                  fontSize: isMobile ? 13 : 13,
                   color: email.isRead ? '#666' : '#ccc',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -133,7 +139,6 @@ export default function EmailList({ emails, loading, selected, onSelect, onRefre
                   {email.subject || '(no subject)'}
                 </div>
 
-                {/* Snippet */}
                 <div style={{
                   fontSize: 12,
                   color: '#444',
@@ -144,7 +149,6 @@ export default function EmailList({ emails, loading, selected, onSelect, onRefre
                   {email.snippet}
                 </div>
 
-                {/* Provider badge */}
                 <div style={{ marginTop: 6 }}>
                   <span style={{
                     fontSize: 10,
