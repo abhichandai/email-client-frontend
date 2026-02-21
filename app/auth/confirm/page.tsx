@@ -7,52 +7,54 @@ import { createClient } from '../../../lib/supabase';
 export default function SupabaseCallback() {
   const router = useRouter();
   const [status, setStatus] = useState('Signing you in...');
-  const [detail, setDetail] = useState('');
 
   useEffect(() => {
     const supabase = createClient();
 
     async function handleCallback() {
-      const url = new URL(window.location.href);
-      const code = url.searchParams.get('code');
-      const error = url.searchParams.get('error');
-      const errorDescription = url.searchParams.get('error_description');
-
-      // Show what params we got for debugging
-      setDetail(`code: ${code ? 'yes' : 'no'} | error: ${error || 'none'}`);
-
-      if (error) {
-        setStatus(`Google error: ${errorDescription || error}`);
-        setTimeout(() => router.push('/login'), 3000);
-        return;
-      }
-
-      if (code) {
-        setStatus('Exchanging code...');
-        const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-        if (exchangeError) {
-          setStatus('Exchange failed: ' + exchangeError.message);
-          setDetail(exchangeError.message);
-          setTimeout(() => router.push('/login'), 4000);
+      // Handle hash-based implicit flow (#access_token=...)
+      if (window.location.hash) {
+        const { data, error } = await supabase.auth.getSession();
+        if (data.session) {
+          router.push('/');
           return;
         }
-        if (data.session) {
-          setStatus('Success! Loading inbox...');
+        if (error) {
+          setStatus('Auth error: ' + error.message);
+          setTimeout(() => router.push('/login'), 3000);
+          return;
+        }
+        // Give it a moment for Supabase to process the hash
+        await new Promise(r => setTimeout(r, 1000));
+        const { data: data2 } = await supabase.auth.getSession();
+        if (data2.session) {
           router.push('/');
           return;
         }
       }
 
-      // No code — check existing session
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        router.push('/');
+      // Handle PKCE code flow (?code=...)
+      const code = new URL(window.location.href).searchParams.get('code');
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (!error) { router.push('/'); return; }
+        setStatus('Exchange error: ' + error.message);
+        setTimeout(() => router.push('/login'), 3000);
         return;
       }
 
-      setStatus('No auth code found.');
-      setDetail('URL: ' + window.location.href.substring(0, 100));
-      setTimeout(() => router.push('/login'), 4000);
+      // Listen for auth state change (catches both flows)
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+          subscription.unsubscribe();
+          router.push('/');
+        }
+      });
+
+      setTimeout(() => {
+        setStatus('Timed out. Try again.');
+        setTimeout(() => router.push('/login'), 2000);
+      }, 6000);
     }
 
     handleCallback();
@@ -60,22 +62,12 @@ export default function SupabaseCallback() {
 
   return (
     <div style={{
-      height: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: '#0a0a0a',
-      color: '#888',
-      fontFamily: 'DM Sans, sans-serif',
-      fontSize: 14,
-      flexDirection: 'column',
-      gap: 12,
-      padding: 20,
-      textAlign: 'center',
+      height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: '#0a0a0a', color: '#888', fontFamily: 'DM Sans, sans-serif',
+      fontSize: 14, flexDirection: 'column', gap: 12, padding: 20, textAlign: 'center',
     }}>
       <div style={{ fontSize: 32 }}>✉</div>
       <div>{status}</div>
-      {detail && <div style={{ fontSize: 11, color: '#444', maxWidth: 320, wordBreak: 'break-all' }}>{detail}</div>}
     </div>
   );
 }
