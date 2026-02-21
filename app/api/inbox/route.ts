@@ -5,8 +5,8 @@ import { cookies } from 'next/headers';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-function createSupabase() {
-  const cookieStore = cookies();
+async function createSupabase() {
+  const cookieStore = await cookies();
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -91,7 +91,7 @@ ${emailList}` }],
 
 // GET - load from DB
 export async function GET(request: NextRequest) {
-  const supabase = createSupabase();
+  const supabase = await createSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
 
 // POST - sync from Gmail + save to DB
 export async function POST(request: NextRequest) {
-  const supabase = createSupabase();
+  const supabase = await createSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
