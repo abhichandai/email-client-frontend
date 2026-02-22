@@ -361,6 +361,14 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts, rul
           onMouseOver={e => (e.currentTarget.style.color = 'var(--text)')}
           onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
         >Sign out</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button
+          onClick={() => { window.location.href = '/onboard'; }}
+          title="Redo inbox setup"
+          style={{ fontSize: 11, color: 'var(--text-muted)' }}
+          onMouseOver={e => (e.currentTarget.style.color = 'var(--accent)')}
+          onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+        >✦ redo setup</button>
         <button
           onClick={onShowShortcuts}
           title="Keyboard shortcuts (?)"
@@ -374,6 +382,7 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts, rul
           onMouseOver={e => { (e.currentTarget.style.color = 'var(--accent)'); (e.currentTarget.style.borderColor = 'rgba(212,168,83,0.4)'); }}
           onMouseOut={e => { (e.currentTarget.style.color = 'var(--text-muted)'); (e.currentTarget.style.borderColor = 'var(--border)'); }}
         >?</button>
+        </div>
       </div>
     </aside>
   );
