@@ -100,8 +100,16 @@ export async function GET(request: NextRequest) {
         syncGoogleContacts(supabase, userId, providerToken).catch(() => {});
       }
 
-      // Redirect to app — no tokens in URL anymore
-      return NextResponse.redirect(`${origin}/`);
+      // Check if user has completed onboarding
+      const { data: prefs } = await supabase
+        .from('user_preferences')
+        .select('onboarded_at')
+        .eq('user_id', userId)
+        .single();
+
+      const isOnboarded = !!prefs?.onboarded_at;
+      const redirectPath = isOnboarded ? '/' : '/onboard';
+      return NextResponse.redirect(`${origin}${redirectPath}`);
     }
   }
 

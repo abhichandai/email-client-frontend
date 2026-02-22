@@ -21,166 +21,159 @@ async function createSupabase() {
   );
 }
 
-// GET - check if user has been onboarded
-export async function GET() {
-  const supabase = await createSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: settings } = await supabase
-    .from('user_settings')
-    .select('onboarded_at')
-    .eq('user_id', user.id)
-    .single();
-
-  return NextResponse.json({ onboarded: !!settings?.onboarded_at });
-}
-
-// POST - fetch emails, run AI, return categorised groups
-export async function POST(req: NextRequest) {
-  const supabase = await createSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { action, emailUpdates } = await req.json();
-
-  // Complete onboarding — save rules derived from user's category choices
-  if (action === 'complete') {
-    const importantSenders: string[] = [];
-    const unimportantSenders: string[] = [];
-
-    for (const { from, originalPriority, finalPriority } of (emailUpdates || [])) {
-      if (!from) continue;
-      const email = from.match(/<(.+)>/)?.[1] || from;
-      // User actively promoted to HIGH → add as important sender
-      if (finalPriority === 'HIGH' && originalPriority !== 'HIGH') {
-        if (!importantSenders.includes(email)) importantSenders.push(email);
-      }
-      // User actively demoted to LOW → add as unimportant sender
-      if (finalPriority === 'LOW' && originalPriority === 'HIGH') {
-        if (!unimportantSenders.includes(email)) unimportantSenders.push(email);
-      }
-    }
-
-    // Save rules if any were derived
-    if (importantSenders.length || unimportantSenders.length) {
-      const { data: existing } = await supabase
-        .from('priority_rules').select('*').eq('user_id', user.id).single();
-      await supabase.from('priority_rules').upsert({
-        user_id: user.id,
-        important_senders: [...(existing?.important_senders || []), ...importantSenders],
-        important_domains: existing?.important_domains || [],
-        important_keywords: existing?.important_keywords || [],
-        unimportant_senders: [...(existing?.unimportant_senders || []), ...unimportantSenders],
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' });
-    }
-
-    // Mark onboarded
-    await supabase.from('user_settings').upsert({
-      user_id: user.id,
-      onboarded_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id' });
-
-    return NextResponse.json({ success: true });
-  }
-
-  // Fetch 100 emails from Gmail
-  let accessToken: string;
-  try {
-    accessToken = await getValidGmailToken(supabase, user.id);
-  } catch {
-    return NextResponse.json({ error: 'Gmail token unavailable' }, { status: 401 });
-  }
-
+async function fetchEmailsForOnboarding(accessToken: string) {
+  const params = new URLSearchParams({ maxResults: '100', q: 'in:inbox -in:trash -in:spam' });
   const listRes = await fetch(
-    'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=100&q=in:inbox',
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages?${params}`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
-  if (!listRes.ok) return NextResponse.json({ error: 'Gmail fetch failed' }, { status: 502 });
+  if (!listRes.ok) throw new Error(`Gmail error ${listRes.status}`);
   const listData = await listRes.json();
-  const messageIds: string[] = (listData.messages || []).map((m: { id: string }) => m.id);
+  const messages: { id: string; threadId: string }[] = listData.messages || [];
 
-  // Batch fetch message details
-  const emails: { id: string; from: string; subject: string; snippet: string; date: string; threadId: string }[] = [];
-  await Promise.all(
-    messageIds.map(async (id) => {
-      try {
+  const batchSize = 20;
+  const emails = [];
+  for (let i = 0; i < messages.length; i += batchSize) {
+    const batch = messages.slice(i, i + batchSize);
+    const results = await Promise.all(
+      batch.map(async (msg) => {
         const res = await fetch(
-          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`,
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`,
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
-        if (!res.ok) return;
-        const msg = await res.json();
-        const headers = msg.payload?.headers || [];
-        const get = (name: string) => headers.find((h: { name: string; value: string }) => h.name === name)?.value || '';
-        emails.push({
-          id: msg.id,
-          from: get('From'),
-          subject: get('Subject') || '(no subject)',
-          snippet: msg.snippet || '',
-          date: get('Date'),
-          threadId: msg.threadId,
-        });
-      } catch { /* skip failed */ }
-    })
-  );
-
-  // Sort by date descending
-  emails.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-  // Run Claude prioritization
-  const emailList = emails.map((e, i) =>
-    `${i + 1}. From: ${e.from} | Subject: ${e.subject} | Preview: ${e.snippet.substring(0, 120)}`
-  ).join('\n');
-
-  let prioritized: { index: number; priority: string; reason: string }[] = [];
-  try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 4096,
-      messages: [{
-        role: 'user',
-        content: `You are helping a new user set up their AI email client. Classify each email into exactly one priority level.
-
-HIGH: Direct personal messages to this specific person, client/customer emails, action required, financial (invoices, payments, contracts), legal matters, job-related, urgent requests from real people
-MEDIUM: Team updates, project notifications, newsletters from known contacts, GitHub/Vercel/service alerts about the user's own projects, replies in ongoing conversations  
-LOW: Automated system notifications, order confirmations, receipts, shipping updates
-MARKETING: Newsletters, promotional emails, product marketing, sales outreach, event invitations from companies, social media notifications, mass campaigns, subscription digests
-
-Key rule: If an email is addressed personally to the user (uses their name, references specific context, comes from a real person's email) it should be HIGH or MEDIUM even if the domain looks corporate. If it's clearly a mass send with no personal addressing, it's MARKETING or LOW.
-
-Return ONLY a JSON array. No markdown. Example: [{"index":1,"priority":"HIGH","reason":"Client asking about project deadline"}]
-
-Emails to classify:
-${emailList}`,
-      }],
-    });
-
-    const text = response.content[0].type === 'text' ? response.content[0].text : '';
-    prioritized = JSON.parse(text.replace(/```json|```/g, '').trim());
-  } catch {
-    // Fallback: everything MEDIUM
-    prioritized = emails.map((_, i) => ({ index: i + 1, priority: 'MEDIUM', reason: '' }));
+        if (!res.ok) return null;
+        const detail = await res.json();
+        const headers = detail.payload?.headers || [];
+        const get = (name: string) =>
+          headers.find((h: { name: string; value: string }) => h.name === name)?.value || '';
+        return {
+          id: msg.id, from: get('From'), subject: get('Subject'),
+          date: get('Date'), snippet: detail.snippet || '',
+          isRead: !detail.labelIds?.includes('UNREAD'), threadId: detail.threadId,
+        };
+      })
+    );
+    emails.push(...results.filter(Boolean));
   }
+  return emails;
+}
 
-  // Merge priorities back onto emails
-  const result = emails.map((e, i) => {
-    const p = prioritized.find(x => x.index === i + 1);
-    return {
-      ...e,
-      priority: p?.priority || 'MEDIUM',
-      reason: p?.reason || '',
-    };
+async function classifyEmails(emails: { from?: string; subject?: string; snippet?: string }[]) {
+  if (!emails.length) return [];
+  const emailList = emails
+    .map((e, i) => `${i + 1}. From: ${e.from} | Subject: ${e.subject} | Preview: ${e.snippet?.substring(0, 120)}`)
+    .join('\n');
+
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-5',
+    max_tokens: 4000,
+    messages: [{
+      role: 'user',
+      content: `You are helping a user set up their AI email client for the first time. Classify each email.
+
+PRIORITY (HIGH): Direct personal messages by name, client/customer emails, action required, financial (invoices, payments, contracts), legal, job offers, time-sensitive matters
+IMPORTANT (MEDIUM): Team updates, ongoing project conversations, newsletters from real people, GitHub/service notifications for their own projects
+LOW: Automated alerts, order confirmations, receipts, account notifications
+MARKETING: Newsletters, promotional emails, product marketing, sales outreach, social media digests, mass company emails
+
+Key signal: If the email addresses this person directly and personally, lean HIGH. If it's a mass send, lean MARKETING.
+
+Return ONLY a JSON array. No explanation. No markdown.
+Format: [{"index":1,"priority":"HIGH","reason":"Client asking about deliverable"}]
+
+Emails:
+${emailList}`,
+    }],
   });
 
-  // Group into categories
-  const grouped = {
-    HIGH: result.filter(e => e.priority === 'HIGH'),
-    MEDIUM: result.filter(e => e.priority === 'MEDIUM'),
-    LOW: result.filter(e => e.priority === 'LOW' || e.priority === 'MARKETING'),
-  };
+  try {
+    const text = response.content[0].type === 'text' ? response.content[0].text : '[]';
+    const priorities: { index: number; priority: string; reason: string }[] = JSON.parse(
+      text.replace(/```json|```/g, '').trim()
+    );
+    return emails.map((e, i) => {
+      const p = priorities.find((x) => x.index === i + 1);
+      return { ...e, priority: p?.priority || 'MEDIUM', reason: p?.reason || '' };
+    });
+  } catch {
+    return emails.map((e) => ({ ...e, priority: 'MEDIUM', reason: '' }));
+  }
+}
 
-  return NextResponse.json({ emails: result, grouped });
+export async function GET() {
+  try {
+    const supabase = await createSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const accessToken = await getValidGmailToken(supabase, user.id);
+    const emails = await fetchEmailsForOnboarding(accessToken);
+    const classified = await classifyEmails(emails.filter((e): e is NonNullable<typeof e> => e !== null));
+    return NextResponse.json({ emails: classified });
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const supabase = await createSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { emails } = await req.json();
+
+    const toUpsert = emails.map((e: {
+      id: string; from: string; subject: string; date: string;
+      snippet: string; isRead: boolean; threadId: string; priority: string; reason: string;
+    }) => ({
+      id: e.id, user_id: user.id, provider: 'gmail',
+      from_address: e.from, subject: e.subject,
+      date: e.date ? new Date(e.date).toISOString() : null,
+      snippet: e.snippet, is_read: e.isRead, thread_id: e.threadId,
+      priority: e.priority === 'MARKETING' ? 'LOW' : (e.priority || 'MEDIUM'),
+      priority_reason: e.reason,
+      is_marketing: e.priority === 'MARKETING',
+      fetched_at: new Date().toISOString(),
+    }));
+
+    if (toUpsert.length > 0) {
+      await supabase.from('emails').upsert(toUpsert, { onConflict: 'id,user_id', ignoreDuplicates: false });
+    }
+
+    // Seed initial priority rules from HIGH emails
+    const highEmails = emails.filter((e: { priority: string }) => e.priority === 'HIGH');
+    const importantSenders: string[] = [];
+    const importantDomains: string[] = [];
+    const publicDomains = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com'];
+
+    for (const e of highEmails) {
+      const raw: string = e.from || '';
+      const emailMatch = raw.match(/<(.+?)>/) || raw.match(/[\w.-]+@[\w.-]+/);
+      const emailAddr = emailMatch ? (emailMatch[1] || emailMatch[0]) : null;
+      if (emailAddr) {
+        importantSenders.push(emailAddr.toLowerCase());
+        const domain = emailAddr.split('@')[1];
+        if (domain && !publicDomains.includes(domain)) importantDomains.push(domain.toLowerCase());
+      }
+    }
+
+    const uniqueSenders = [...new Set(importantSenders)].slice(0, 20);
+    const uniqueDomains = [...new Set(importantDomains)].slice(0, 10);
+
+    if (uniqueSenders.length > 0 || uniqueDomains.length > 0) {
+      await supabase.from('priority_rules').upsert(
+        { user_id: user.id, important_senders: uniqueSenders, important_domains: uniqueDomains,
+          important_keywords: [], unimportant_senders: [], updated_at: new Date().toISOString() },
+        { onConflict: 'user_id' }
+      );
+    }
+
+    await supabase.from('user_preferences').upsert(
+      { user_id: user.id, onboarded_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' }
+    );
+
+    return NextResponse.json({ success: true });
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
 }
