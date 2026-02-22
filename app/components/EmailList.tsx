@@ -268,7 +268,8 @@ export default function EmailList({
           <div style={{ padding: '6px 12px', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', borderBottom: '1px solid var(--border)' }}>
             {contextMenu.email.from?.replace(/<.*>/, '').trim()?.split(' ')[0]}
           </div>
-          {[\n            { label: '↩ Reply', action: () => { setContextMenu(null); onSelect(contextMenu.email); onReply?.(contextMenu.email); }, color: 'var(--text)' },
+          {[
+            { label: '↩ Reply', action: () => { setContextMenu(null); onSelect(contextMenu.email); onReply?.(contextMenu.email); }, color: 'var(--text)' },
             { label: '↩↩ Reply All', action: () => { setContextMenu(null); onSelect(contextMenu.email); onReplyAll?.(contextMenu.email); }, color: 'var(--text)' },
             null,
             { label: '● Priority', action: () => setPriority(contextMenu.email, 'HIGH'), color: '#e05c5c' },
