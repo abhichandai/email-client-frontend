@@ -15,7 +15,7 @@ export default function LoginPage() {
       provider: 'google',
       options: {
         redirectTo: 'https://app.mailmfer.com/auth/confirm',
-        scopes: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send',
+        scopes: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/contacts.readonly',
         queryParams: { access_type: 'offline', prompt: 'consent' },
       },
     });

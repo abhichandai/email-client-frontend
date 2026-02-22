@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Account } from '../context/accounts';
 import { Email } from '../types';
 
@@ -26,7 +26,56 @@ export default function ComposeModal({ accounts, replyTo, onClose }: ComposeModa
   const [aiError, setAiError] = useState('');
   const [lastPrompt, setLastPrompt] = useState('');
 
-  const toRef = useRef<HTMLInputElement>(null);
+  // Contact autocomplete state
+  const [contactSuggestions, setContactSuggestions] = useState<{ email: string; name: string | null; photo_url: string | null; source: string }[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [highlightedIdx, setHighlightedIdx] = useState(0);
+  const contactSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  const searchContacts = (query: string) => {
+    if (contactSearchTimeout.current) clearTimeout(contactSearchTimeout.current);
+    if (!query.trim() || query.includes(',')) {
+      setContactSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    contactSearchTimeout.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/contacts?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        if (data.contacts?.length) {
+          setContactSuggestions(data.contacts);
+          setShowSuggestions(true);
+          setHighlightedIdx(0);
+        } else {
+          setShowSuggestions(false);
+        }
+      } catch { setShowSuggestions(false); }
+    }, 150);
+  };
+
+  const selectContact = (contact: { email: string; name: string | null }) => {
+    const formatted = contact.name ? `${contact.name} <${contact.email}>` : contact.email;
+    // Support comma-separated multiple recipients
+    const parts = to.split(',');
+    parts[parts.length - 1] = formatted;
+    setTo(parts.join(', ') + ', ');
+    setShowSuggestions(false);
+    setContactSuggestions([]);
+    toRef.current?.focus();
+  };
+
+  const handleToKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showSuggestions) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setHighlightedIdx((i: number) => Math.min(i + 1, contactSuggestions.length - 1)); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); setHighlightedIdx((i: number) => Math.max(i - 1, 0)); }
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      if (contactSuggestions[highlightedIdx]) selectContact(contactSuggestions[highlightedIdx]);
+    }
+    if (e.key === 'Escape') { setShowSuggestions(false); }
+  };
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const aiInputRef = useRef<HTMLInputElement>(null);
 
@@ -159,13 +208,72 @@ export default function ComposeModal({ accounts, replyTo, onClose }: ComposeModa
             <span style={{ fontSize: 12, color: 'var(--text-muted)', width: 48, flexShrink: 0 }}>From</span>
             <span style={{ fontSize: 13, color: 'var(--text)', opacity: 0.7 }}>{account?.email}</span>
           </div>
-          <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 16, position: 'relative' }}>
             <span style={{ fontSize: 12, color: 'var(--text-muted)', width: 48, flexShrink: 0 }}>To</span>
             <input
-              ref={toRef} value={to} onChange={e => setTo(e.target.value)}
+              ref={toRef} value={to}
+              onChange={e => { setTo(e.target.value); searchContacts(e.target.value.split(',').pop()?.trim() || ''); }}
+              onKeyDown={handleToKeyDown}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+              onFocus={() => { if (to.trim()) searchContacts(to.split(',').pop()?.trim() || ''); }}
               placeholder="recipient@email.com"
               style={{ flex: 1, background: 'transparent', color: 'var(--text)', border: 'none', fontSize: 13, outline: 'none' }}
+              autoComplete="off"
             />
+            {/* Autocomplete dropdown */}
+            {showSuggestions && contactSuggestions.length > 0 && (
+              <div
+                ref={suggestionsRef}
+                style={{
+                  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                  background: 'var(--bg-2)', border: '1px solid var(--border)',
+                  borderRadius: 8, boxShadow: '0 8px 32px var(--shadow)',
+                  overflow: 'hidden',
+                }}
+              >
+                {contactSuggestions.map((c, i) => (
+                  <div
+                    key={c.email}
+                    onMouseDown={() => selectContact(c)}
+                    style={{
+                      padding: '9px 16px', display: 'flex', alignItems: 'center', gap: 10,
+                      cursor: 'pointer',
+                      background: i === highlightedIdx ? 'var(--accent-dim)' : 'transparent',
+                      transition: 'background 0.1s',
+                    }}
+                    onMouseEnter={() => setHighlightedIdx(i)}
+                  >
+                    {/* Avatar */}
+                    <div style={{
+                      width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                      background: c.photo_url ? 'transparent' : 'rgba(212,168,83,0.15)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      overflow: 'hidden',
+                    }}>
+                      {c.photo_url
+                        ? <img src={c.photo_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+                        : <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)' }}>
+                            {(c.name || c.email)[0].toUpperCase()}
+                          </span>
+                      }
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {c.name && (
+                        <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {c.name}
+                        </div>
+                      )}
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {c.email}
+                      </div>
+                    </div>
+                    {c.source === 'google_contacts' && (
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.5, flexShrink: 0 }}>contacts</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 16 }}>
             <span style={{ fontSize: 12, color: 'var(--text-muted)', width: 48, flexShrink: 0 }}>Subject</span>
