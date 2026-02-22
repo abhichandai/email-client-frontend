@@ -46,6 +46,8 @@ export default function KeyboardShortcutsHelp({ onClose }: KeyboardShortcutsHelp
           <button
             onClick={onClose}
             style={{ color: 'var(--text-muted)', fontSize: 18, lineHeight: 1 }}
+            onMouseOver={e => (e.currentTarget.style.color = 'var(--text)')}
+            onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
           >×</button>
         </div>
 
@@ -59,7 +61,7 @@ export default function KeyboardShortcutsHelp({ onClose }: KeyboardShortcutsHelp
                 borderBottom: '1px solid var(--border)',
               }}
             >
-              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{label}</span>
+              <span style={{ fontSize: 13, color: 'var(--text)' }}>{label}</span>
               <div style={{ display: 'flex', gap: 4 }}>
                 {keys.map(k => (
                   <kbd
@@ -67,11 +69,12 @@ export default function KeyboardShortcutsHelp({ onClose }: KeyboardShortcutsHelp
                     style={{
                       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                       minWidth: 24, height: 24, padding: '0 6px',
-                      background: 'rgba(212,168,83,0.1)',
-                      border: '1px solid rgba(212,168,83,0.3)',
+                      background: 'var(--accent-dim)',
+                      border: '1px solid var(--accent)',
                       borderRadius: 5,
-                      fontSize: 12, fontFamily: 'monospace', fontWeight: 600,
+                      fontSize: 12, fontFamily: 'monospace', fontWeight: 700,
                       color: 'var(--accent)',
+                      opacity: 0.85,
                     }}
                   >
                     {k}
