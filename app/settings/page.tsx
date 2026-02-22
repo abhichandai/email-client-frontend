@@ -92,6 +92,12 @@ export default function SettingsPage() {
   const [rulesSaved, setRulesSaved] = useState(false);
 
   useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') router.push('/'); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [router]);
+
+  useEffect(() => {
     fetch('/api/preferences').then(r => r.json()).then(d => {
       if (d.signature !== undefined) setSignature(d.signature);
     }).catch(() => {});
