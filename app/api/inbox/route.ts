@@ -227,5 +227,12 @@ export async function POST(request: NextRequest) {
 
   await supabase.from('emails').upsert(toUpsert, { onConflict: 'id,user_id', ignoreDuplicates: false });
 
-  return NextResponse.json({ emails: prioritized, nextPageToken });
+  // Map response to match the same shape as DB reads (isMarketing derived from priority)
+  const responseEmails = prioritized.map((e: Record<string, unknown>) => ({
+    ...e,
+    isMarketing: e.priority === 'MARKETING',
+    priority: e.priority === 'MARKETING' ? 'LOW' : (e.priority || 'MEDIUM'),
+  }));
+
+  return NextResponse.json({ emails: responseEmails, nextPageToken });
 }
