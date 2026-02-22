@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { AccountProvider, useAccounts } from './context/accounts';
+import { createClient } from '../lib/supabase';
 import Sidebar from './components/Sidebar';
 import EmailList from './components/EmailList';
 import EmailDetail from './components/EmailDetail';
@@ -34,7 +35,7 @@ function groupIntoThreads(emails: Email[]): Email[] {
 }
 
 function InboxApp() {
-  const { accounts } = useAccounts();
+  const { accounts, addAccount } = useAccounts();
   const [emails, setEmails] = useState<Email[]>([]);
   const [selected, setSelected] = useState<Email | null>(null);
   const [loading, setLoading] = useState(false);
@@ -124,6 +125,39 @@ function InboxApp() {
       const data = await res.json();
 
       if (data.error === 'SESSION_EXPIRED' || res.status === 401) {
+        // Try to refresh the Google token via Supabase
+        try {
+          const supabase = createClient();
+          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+          if (!refreshError && refreshData.session?.provider_token && refreshData.session.user) {
+            const refreshedAccount = {
+              id: refreshData.session.user.id,
+              provider: 'gmail' as const,
+              email: refreshData.session.user.email || accounts[0]?.email || '',
+              tokens: {
+                access_token: refreshData.session.provider_token,
+                refresh_token: refreshData.session.provider_refresh_token || accounts[0]?.tokens?.refresh_token || '',
+                token_type: 'Bearer',
+              },
+            };
+            addAccount(refreshedAccount);
+            // Retry the sync with the fresh token (don't recurse infinitely)
+            if (!pageToken) {
+              const retryRes = await fetch('/api/inbox', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  accounts: [{ provider: refreshedAccount.provider, email: refreshedAccount.email, tokens: refreshedAccount.tokens }],
+                  rules, forceRefresh,
+                }),
+              });
+              const retryData = await retryRes.json();
+              if (retryData.emails) setEmails(retryData.emails);
+              if (retryData.nextPageToken) setNextPageToken(retryData.nextPageToken);
+              return;
+            }
+          }
+        } catch { /* fall through to show error */ }
         setError('Your Gmail session has expired. Please sign out and sign back in to reconnect.');
         return;
       }
@@ -148,7 +182,7 @@ function InboxApp() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [accounts, rules]);
+  }, [accounts, rules, addAccount]);
 
   // On mount: instant DB load, then background sync
   useEffect(() => {
