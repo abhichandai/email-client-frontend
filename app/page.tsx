@@ -407,10 +407,10 @@ function InboxApp() {
         transition: isMobile ? 'left 0.25s ease' : 'none', flexShrink: 0,
       }}>
         <Sidebar
-          accounts={accounts} filter={filter}
+          filter={filter}
           setFilter={(f) => { setFilter(f); if (isMobile) setSidebarOpen(false); if (f === 'SENT') loadSentEmails(); }}
           onCompose={() => { setReplyTo(null); setComposing(true); setSidebarOpen(false); }}
-          emailCounts={emailCounts} rules={rules} onSaveRules={saveRules}
+          emailCounts={emailCounts}
           onForceRefresh={() => syncFromGmail(true, undefined, true)}
           onShowShortcuts={() => setShowShortcutsHelp(true)}
         />

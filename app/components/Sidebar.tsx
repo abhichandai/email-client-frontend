@@ -1,453 +1,226 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAccounts, Account } from '../context/accounts';
-import { useTheme } from '../context/theme';
 import { createClient } from '../../lib/supabase';
 
-interface PriorityRules {
-  importantSenders: string[];
-  importantDomains: string[];
-  importantKeywords: string[];
-  unimportantSenders: string[];
-}
-
 interface SidebarProps {
-  accounts: Account[];
   filter: string;
   setFilter: (f: 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'MARKETING' | 'CALENDAR' | 'COMPLETE' | 'SENT') => void;
   onCompose: () => void;
   emailCounts: Record<string, number>;
-  rules: PriorityRules;
-  onSaveRules: (rules: PriorityRules) => void;
   onForceRefresh: () => void;
   onShowShortcuts?: () => void;
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-
-// Default keywords that give the "magic" feeling
-const DEFAULT_KEYWORDS = [
-  'invoice', 'payment', 'contract', 'agreement', 'receipt',
-  'deadline', 'urgent', 'action required', 'wire transfer',
-  'legal', 'offer letter', 'sign', 'NDA',
+const NAV_FILTERS: { key: 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'MARKETING' | 'CALENDAR' | 'COMPLETE' | 'SENT'; label: string; icon: string; color: string }[] = [
+  { key: 'ALL',       label: 'All Mail',  icon: '✉',  color: 'var(--text)' },
+  { key: 'HIGH',      label: 'Priority',  icon: '●',  color: 'var(--high)' },
+  { key: 'MEDIUM',    label: 'Important', icon: '●',  color: 'var(--med)' },
+  { key: 'LOW',       label: 'Low',       icon: '●',  color: 'var(--text-muted)' },
+  { key: 'MARKETING', label: 'Marketing', icon: '📣', color: '#8b7cf8' },
+  { key: 'CALENDAR',  label: 'Calendar',  icon: '📅', color: '#7ab3d4' },
+  { key: 'SENT',      label: 'Sent',      icon: '↗',  color: 'var(--text-muted)' },
+  { key: 'COMPLETE',  label: 'Complete',  icon: '✓',  color: '#4caf82' },
 ];
 
-export default function Sidebar({ filter, setFilter, onCompose, emailCounts, rules, onSaveRules, onForceRefresh, onShowShortcuts }: SidebarProps) {
+export default function Sidebar({ filter, setFilter, onCompose, emailCounts, onForceRefresh, onShowShortcuts }: SidebarProps) {
   const { accounts, removeAccount } = useAccounts();
-  const { preference, setPreference } = useTheme();
-  const [showAddMenu, setShowAddMenu] = useState(false);
-  const [showRules, setShowRules] = useState(false);
-  const [showImportantSenders, setShowImportantSenders] = useState(true);
-  const [showIgnoreSenders, setShowIgnoreSenders] = useState(true);
-  const [showKeywords, setShowKeywords] = useState(true);
-  const [input, setInput] = useState('');
-  const [ruleType, setRuleType] = useState<keyof PriorityRules>('importantSenders');
-  const [showSignature, setShowSignature] = useState(false);
-  const [signature, setSignature] = useState('');
-  const [signatureSaving, setSignatureSaving] = useState(false);
-  const [signatureSaved, setSignatureSaved] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
-    fetch('/api/preferences').then(r => r.json()).then(d => {
-      if (d.signature !== undefined) setSignature(d.signature);
-    }).catch(() => {});
+    const stored = localStorage.getItem('sidebar-collapsed');
+    if (stored === 'true') setCollapsed(true);
   }, []);
 
-  const filters: { key: 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'MARKETING' | 'CALENDAR' | 'COMPLETE' | 'SENT'; label: string; color: string }[] = [
-    { key: 'ALL', label: 'All Mail', color: 'var(--text)' },
-    { key: 'HIGH', label: 'Priority', color: 'var(--high)' },
-    { key: 'MEDIUM', label: 'Important', color: 'var(--med)' },
-    { key: 'LOW', label: 'Low', color: 'var(--text-muted)' },
-    { key: 'MARKETING', label: '📣 Marketing', color: '#8b7cf8' },
-    { key: 'CALENDAR', label: '📅 Calendar', color: '#7ab3d4' },
-    { key: 'SENT', label: '📤 Sent', color: 'var(--text-muted)' },
-    { key: 'COMPLETE', label: '✓ Complete', color: '#4caf82' },
-  ];
+  useEffect(() => {
+    localStorage.setItem('sidebar-collapsed', String(collapsed));
+  }, [collapsed]);
 
-  const addRule = () => {
-    const val = input.trim();
-    if (!val || rules[ruleType].includes(val)) return;
-    onSaveRules({ ...rules, [ruleType]: [...rules[ruleType], val] });
-    setInput('');
-  };
-
-  const removeRule = (type: keyof PriorityRules, val: string) => {
-    onSaveRules({ ...rules, [type]: rules[type].filter(x => x !== val) });
-  };
-
-  const addDefaultKeyword = (kw: string) => {
-    if (rules.importantKeywords.includes(kw)) return;
-    onSaveRules({ ...rules, importantKeywords: [...rules.importantKeywords, kw] });
-  };
-
-  const CollapsibleSection = ({
-    title, items, type, open, onToggle, emptyHint
-  }: {
-    title: string; items: string[]; type: keyof PriorityRules;
-    open: boolean; onToggle: () => void; emptyHint: string;
-  }) => (
-    <div style={{ marginBottom: 8 }}>
-      <button
-        onClick={onToggle}
-        style={{
-          width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '4px 0', fontSize: 11, color: items.length ? 'var(--text)' : 'var(--text-muted)',
-          fontWeight: items.length ? 500 : 400,
-        }}
-      >
-        <span>{title} {items.length > 0 && <span style={{ fontSize: 10, background: 'var(--bg)', borderRadius: 8, padding: '1px 5px', marginLeft: 3 }}>{items.length}</span>}</span>
-        <span style={{ fontSize: 9, opacity: 0.5 }}>{open ? '▲' : '▼'}</span>
-      </button>
-      {open && (
-        <div style={{ marginTop: 4 }}>
-          {items.length === 0 ? (
-            <div style={{ fontSize: 10, color: '#555', fontStyle: 'italic', padding: '2px 0' }}>{emptyHint}</div>
-          ) : (
-            items.map(val => (
-              <div key={val} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '3px 6px', background: 'var(--bg-3)', borderRadius: 3, marginBottom: 2,
-              }}>
-                <span style={{ fontSize: 11, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{val}</span>
-                <button onClick={() => removeRule(type, val)} style={{ color: 'var(--text-muted)', fontSize: 13, marginLeft: 4, flexShrink: 0, lineHeight: 1 }}>×</button>
-              </div>
-            ))
-          )}
-        </div>
-      )}
-    </div>
-  );
+  const w = collapsed ? 56 : 220;
 
   return (
     <aside style={{
-      width: 220, background: 'var(--bg-2)', borderRight: '1px solid var(--border)',
-      display: 'flex', flexDirection: 'column', padding: '24px 0',
-      flexShrink: 0, height: '100%',
+      width: w, minWidth: w, background: 'var(--bg-2)', borderRight: '1px solid var(--border)',
+      display: 'flex', flexDirection: 'column', flexShrink: 0, height: '100%',
+      transition: 'width 0.2s ease, min-width 0.2s ease', overflow: 'hidden',
     }}>
-      {/* Logo */}
+
+      {/* Logo + collapse */}
       <div style={{
-        padding: '0 20px 24px',
+        padding: collapsed ? '20px 0' : '20px 16px 20px 20px',
         borderBottom: '1px solid var(--border)',
-        background: 'linear-gradient(180deg, rgba(212,168,83,0.04) 0%, transparent 100%)',
+        display: 'flex', alignItems: 'center',
+        justifyContent: collapsed ? 'center' : 'space-between',
+        minHeight: 64,
       }}>
-        <div style={{ fontFamily: 'Instrument Serif, serif', fontSize: 22, letterSpacing: '-0.3px' }}>
-          <span style={{ color: 'var(--text)', fontWeight: 600 }}>mail</span><span style={{ color: 'var(--accent)' }}>mfer</span>
-        </div>
-        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, letterSpacing: '0.15em', textTransform: 'uppercase' }}>Priority Inbox</div>
+        {!collapsed && (
+          <div style={{ fontFamily: 'Instrument Serif, serif', fontSize: 20, letterSpacing: '-0.3px' }}>
+            <span style={{ color: 'var(--text)', fontWeight: 600 }}>mail</span>
+            <span style={{ color: 'var(--accent)' }}>mfer</span>
+          </div>
+        )}
+        <button onClick={() => setCollapsed(v => !v)}
+          title={collapsed ? 'Expand' : 'Collapse'}
+          style={{ color: 'var(--text-muted)', fontSize: 13, padding: 4, borderRadius: 4 }}
+          onMouseOver={e => (e.currentTarget.style.color = 'var(--text)')}
+          onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+        >{collapsed ? '›' : '‹'}</button>
       </div>
 
       {/* Compose + Sync */}
-      <div style={{ padding: '16px 16px 8px', display: 'flex', gap: 6 }}>
-        <button onClick={onCompose} style={{
-          flex: 1, padding: '9px 14px', background: 'var(--accent)', color: '#0a0a0a',
-          borderRadius: 6, fontSize: 13, fontWeight: 500, transition: 'opacity 0.15s',
-        }}
+      <div style={{
+        padding: collapsed ? '10px 8px' : '10px 10px 4px',
+        display: 'flex', gap: 6,
+        flexDirection: collapsed ? 'column' : 'row',
+      }}>
+        <button onClick={onCompose} title="Compose"
+          style={{
+            flex: 1, padding: collapsed ? '9px 0' : '8px 12px',
+            background: 'var(--accent)', color: '#0a0a0a', borderRadius: 6,
+            fontSize: collapsed ? 18 : 13, fontWeight: 500, textAlign: 'center',
+          }}
           onMouseOver={e => (e.currentTarget.style.opacity = '0.85')}
           onMouseOut={e => (e.currentTarget.style.opacity = '1')}
-        >+ Compose</button>
-        <button onClick={onForceRefresh} title="Sync fresh from Gmail" style={{
-          padding: '9px 10px', background: 'var(--bg-3)', color: 'var(--text-muted)',
-          border: '1px solid var(--border)', borderRadius: 6, fontSize: 14,
-        }}
+        >{collapsed ? '+' : '+ Compose'}</button>
+        <button onClick={onForceRefresh} title="Sync from Gmail"
+          style={{
+            padding: '8px', background: 'var(--bg-3)', color: 'var(--text-muted)',
+            border: '1px solid var(--border)', borderRadius: 6, fontSize: 14,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
           onMouseOver={e => (e.currentTarget.style.color = 'var(--accent)')}
           onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
         >↺</button>
       </div>
 
-      {/* Filters */}
-      <div style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-        {filters.map((f) => (
-          <button key={f.key} onClick={() => setFilter(f.key)} style={{
-            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '8px 20px',
-            background: filter === f.key ? 'var(--accent-dim)' : 'transparent',
-            color: filter === f.key ? f.color : 'var(--text-muted)',
-            fontSize: 13, transition: 'all 0.1s',
-            borderLeft: filter === f.key ? `2px solid ${f.color}` : '2px solid transparent',
-          }}>
-            <span>{f.label}</span>
-            <span style={{ fontSize: 11, background: 'rgba(128,128,128,0.08)', padding: '1px 6px', borderRadius: 10 }}>
-              {emailCounts[f.key] || 0}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* Priority Rules */}
-      <div style={{ borderBottom: '1px solid var(--border)', overflow: 'auto', flex: 1 }}>
-        <button
-          onClick={() => setShowRules(!showRules)}
-          style={{
-            width: '100%', padding: '10px 20px', display: 'flex', alignItems: 'center',
-            justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)',
-          }}
-          onMouseOver={e => (e.currentTarget.style.color = 'var(--text)')}
-          onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
-        >
-          <span>⚡ Priority Rules</span>
-          <span style={{ fontSize: 10 }}>{showRules ? '▲' : '▼'}</span>
-        </button>
-
-        {showRules && (
-          <div style={{ padding: '0 16px 12px' }}>
-            {/* Add rule */}
-            <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
-              <select
-                value={ruleType}
-                onChange={e => setRuleType(e.target.value as keyof PriorityRules)}
-                style={{
-                  padding: '5px 4px', background: 'var(--bg-3)', color: 'var(--text)',
-                  border: '1px solid var(--border)', borderRadius: 4, fontSize: 10, width: 28,
-                  appearance: 'none', textAlign: 'center', cursor: 'pointer',
-                }}
-                title="Rule type"
-              >
-                <option value="importantSenders" title="Important sender">⬆ S</option>
-                <option value="importantDomains" title="Important domain">⬆ D</option>
-                <option value="importantKeywords" title="Important keyword">⬆ K</option>
-                <option value="unimportantSenders" title="Ignore sender">⬇ S</option>
-              </select>
-              <input
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addRule()}
-                placeholder={ruleType.includes('Domain') ? 'example.com' : ruleType.includes('Keyword') ? 'keyword' : 'email@...'}
-                style={{
-                  flex: 1, padding: '5px 8px', background: 'var(--bg-3)',
-                  color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11,
-                }}
-              />
-              <button onClick={addRule} style={{
-                padding: '5px 8px', background: 'var(--accent)', color: '#0a0a0a',
-                borderRadius: 4, fontSize: 11, fontWeight: 700,
-              }}>+</button>
-            </div>
-
-            {/* Important Senders — collapsible */}
-            <CollapsibleSection
-              title="⬆ Important senders"
-              items={rules.importantSenders}
-              type="importantSenders"
-              open={showImportantSenders}
-              onToggle={() => setShowImportantSenders(v => !v)}
-              emptyHint="No important senders"
-            />
-
-            {/* Ignore Senders — collapsible */}
-            <CollapsibleSection
-              title="⬇ Ignore senders"
-              items={rules.unimportantSenders}
-              type="unimportantSenders"
-              open={showIgnoreSenders}
-              onToggle={() => setShowIgnoreSenders(v => !v)}
-              emptyHint="No ignored senders"
-            />
-
-            {/* Keywords — collapsible with defaults */}
-            <div style={{ marginBottom: 8 }}>
-              <button
-                onClick={() => setShowKeywords(v => !v)}
-                style={{
-                  width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '4px 0', fontSize: 11, color: rules.importantKeywords.length ? 'var(--text)' : 'var(--text-muted)',
-                  fontWeight: rules.importantKeywords.length ? 500 : 400,
-                }}
-              >
-                <span>⬆ Keywords {rules.importantKeywords.length > 0 && <span style={{ fontSize: 10, background: 'var(--bg)', borderRadius: 8, padding: '1px 5px', marginLeft: 3 }}>{rules.importantKeywords.length}</span>}</span>
-                <span style={{ fontSize: 9, opacity: 0.5 }}>{showKeywords ? '▲' : '▼'}</span>
-              </button>
-              {showKeywords && (
-                <div style={{ marginTop: 4 }}>
-                  {rules.importantKeywords.map(val => (
-                    <div key={val} style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '3px 6px', background: 'var(--bg-3)', borderRadius: 3, marginBottom: 2,
-                    }}>
-                      <span style={{ fontSize: 11, color: 'var(--text)' }}>{val}</span>
-                      <button onClick={() => removeRule('importantKeywords', val)} style={{ color: 'var(--text-muted)', fontSize: 13, marginLeft: 4, lineHeight: 1 }}>×</button>
-                    </div>
-                  ))}
-                  {/* Default keyword suggestions */}
-                  <div style={{ marginTop: 6 }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>✨ Quick add:</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                      {DEFAULT_KEYWORDS.filter(kw => !rules.importantKeywords.includes(kw)).slice(0, 8).map(kw => (
-                        <button
-                          key={kw}
-                          onClick={() => addDefaultKeyword(kw)}
-                          style={{
-                            fontSize: 10, padding: '2px 7px',
-                            background: 'var(--bg)', border: '1px solid var(--border)',
-                            borderRadius: 10, color: 'var(--text-muted)', cursor: 'pointer',
-                          }}
-                          onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)'; }}
-                          onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
-                        >
-                          + {kw}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+      {/* Nav */}
+      <div style={{ padding: '6px 0', borderBottom: '1px solid var(--border)', flex: 1, overflowY: 'auto' }}>
+        {NAV_FILTERS.map(f => {
+          const active = filter === f.key;
+          const count = emailCounts[f.key] || 0;
+          return (
+            <button key={f.key} onClick={() => setFilter(f.key)}
+              title={collapsed ? `${f.label} (${count})` : undefined}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center',
+                justifyContent: collapsed ? 'center' : 'space-between',
+                padding: collapsed ? '9px 0' : '7px 20px',
+                background: active ? 'var(--accent-dim)' : 'transparent',
+                color: active ? f.color : 'var(--text-muted)',
+                fontSize: 13, transition: 'all 0.1s',
+                borderLeft: active ? `2px solid ${f.color}` : '2px solid transparent',
+                position: 'relative',
+              }}
+              onMouseOver={e => { if (!active) e.currentTarget.style.color = 'var(--text)'; }}
+              onMouseOut={e => { if (!active) e.currentTarget.style.color = 'var(--text-muted)'; }}
+            >
+              {collapsed ? (
+                <span style={{ position: 'relative', display: 'inline-flex' }}>
+                  <span style={{ color: active ? f.color : 'var(--text-muted)', fontSize: f.icon.length > 1 ? 14 : 9 }}>{f.icon}</span>
+                  {count > 0 && (
+                    <span style={{
+                      position: 'absolute', top: -5, right: -8, fontSize: 8,
+                      background: f.color, color: '#fff', borderRadius: 6,
+                      padding: '1px 3px', fontWeight: 700, minWidth: 12, textAlign: 'center',
+                    }}>{count > 99 ? '99+' : count}</span>
+                  )}
+                </span>
+              ) : (
+                <>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ color: f.color, fontSize: f.icon.length > 1 ? 13 : 8, width: 14, textAlign: 'center' }}>{f.icon}</span>
+                    {f.label}
+                  </span>
+                  <span style={{ fontSize: 11, background: 'rgba(128,128,128,0.08)', padding: '1px 6px', borderRadius: 10 }}>
+                    {count}
+                  </span>
+                </>
               )}
-            </div>
-
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.5, marginTop: 4 }}>
-              Rules apply on next sync
-            </div>
-          </div>
-        )}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Accounts */}
-      <div style={{ padding: '12px 0 8px' }}>
-        <div style={{ padding: '0 20px 6px', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Accounts</div>
-        {accounts.map((acc: Account) => (
-          <div key={acc.id} style={{ padding: '6px 20px', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{
-              width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-              background: '#4caf82',
-            }} title="Connected" />
-            <div style={{ flex: 1, overflow: 'hidden' }}>
-              <div style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      {/* Accounts - hidden when collapsed */}
+      {!collapsed && (
+        <div style={{ padding: '10px 0 6px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ padding: '0 20px 5px', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+            Accounts
+          </div>
+          {accounts.map((acc: Account) => (
+            <div key={acc.id} style={{ padding: '5px 20px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4caf82', flexShrink: 0 }} />
+              <div style={{ flex: 1, fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {acc.email}
               </div>
+              <button onClick={() => removeAccount(acc.id)} style={{ color: 'var(--text-muted)', fontSize: 14 }}>×</button>
             </div>
-            <button onClick={() => removeAccount(acc.id)} style={{ color: 'var(--text-muted)', fontSize: 14, flexShrink: 0 }}>×</button>
-          </div>
-        ))}
-        <div style={{ padding: '4px 20px', position: 'relative' }}>
-          <button onClick={() => setShowAddMenu(!showAddMenu)} style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> Add account
-          </button>
-          {showAddMenu && (
-            <div style={{
-              position: 'absolute', left: 20, top: '100%', background: 'var(--bg-3)',
-              border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', zIndex: 50,
-              minWidth: 160, boxShadow: '0 8px 24px var(--shadow)',
-            }}>
-              <a href={`${API}/auth/gmail/login?accountId=${Date.now()}`}
-                style={{ display: 'block', padding: '10px 16px', fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>Gmail</a>
-              <a href={`${API}/auth/outlook/login?accountId=${Date.now()}`}
-                style={{ display: 'block', padding: '10px 16px', fontSize: 13, color: 'var(--text)' }}>Outlook</a>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Signature */}
-      <div style={{ borderTop: '1px solid var(--border)' }}>
-        <button
-          onClick={() => setShowSignature(!showSignature)}
-          style={{
-            width: '100%', padding: '10px 20px', display: 'flex', alignItems: 'center',
-            justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)',
-          }}
-          onMouseOver={e => (e.currentTarget.style.color = 'var(--text)')}
-          onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
-        >
-          <span>✍ Signature</span>
-          <span style={{ fontSize: 10 }}>{showSignature ? '▲' : '▼'}</span>
-        </button>
-        {showSignature && (
-          <div style={{ padding: '0 16px 12px' }}>
-            <textarea
-              value={signature}
-              onChange={e => { setSignature(e.target.value); setSignatureSaved(false); }}
-              placeholder={'Abhi Chand\nabhi@abhichand.com'}
-              rows={4}
-              style={{
-                width: '100%', padding: '8px 10px', fontSize: 12,
-                background: 'var(--bg-3)', color: 'var(--text)',
-                border: '1px solid var(--border)', borderRadius: 6,
-                resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5,
-                boxSizing: 'border-box',
-              }}
-            />
-            <button
-              onClick={async () => {
-                setSignatureSaving(true);
-                await fetch('/api/preferences', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ signature }),
-                });
-                setSignatureSaving(false);
-                setSignatureSaved(true);
-                setTimeout(() => setSignatureSaved(false), 2000);
-              }}
-              style={{
-                marginTop: 6, padding: '5px 12px', fontSize: 11, borderRadius: 5,
-                background: signatureSaved ? '#2d6a4f22' : 'var(--accent)',
-                color: signatureSaved ? '#2d6a4f' : '#0a0a0a',
-                border: signatureSaved ? '1px solid #2d6a4f44' : 'none',
-                fontWeight: 600, transition: 'all 0.2s',
-              }}
-            >
-              {signatureSaving ? 'Saving...' : signatureSaved ? '✓ Saved' : 'Save'}
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Theme toggle */}
-      <div style={{ padding: '10px 20px', borderTop: '1px solid var(--border)' }}>
-        <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 6 }}>Appearance</div>
-        <div style={{ display: 'flex', gap: 4 }}>
-          {(['light', 'dark', 'system'] as const).map(opt => (
-            <button
-              key={opt}
-              onClick={() => setPreference(opt)}
-              style={{
-                flex: 1, padding: '5px 0', fontSize: 10, borderRadius: 5,
-                background: preference === opt ? 'var(--accent)' : 'var(--bg-3)',
-                color: preference === opt ? '#0a0a0a' : 'var(--text-muted)',
-                fontWeight: preference === opt ? 600 : 400,
-                border: '1px solid var(--border)',
-                transition: 'all 0.15s',
-              }}
-            >
-              {opt === 'light' ? '☀' : opt === 'dark' ? '☾' : '⊙'} {opt}
-            </button>
           ))}
         </div>
-      </div>
+      )}
 
-      {/* Sign out + shortcuts hint */}
-      <div style={{ padding: '8px 20px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <button onClick={async () => {
-          const supabase = createClient();
-          await supabase.auth.signOut();
-          localStorage.removeItem('email-accounts');
-          localStorage.removeItem('priority-rules');
-          window.location.href = '/login';
-        }} style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}
-          onMouseOver={e => (e.currentTarget.style.color = 'var(--text)')}
-          onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
-        >Sign out</button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <button
-          onClick={() => { window.location.href = '/onboard'; }}
-          title="Redo inbox setup"
-          style={{ fontSize: 11, color: 'var(--text-muted)' }}
-          onMouseOver={e => (e.currentTarget.style.color = 'var(--accent)')}
-          onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
-        >✦ redo setup</button>
-        <button
-          onClick={onShowShortcuts}
-          title="Keyboard shortcuts (?)"
-          style={{
-            fontSize: 11, color: 'var(--text-muted)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: 20, height: 20,
-            border: '1px solid var(--border)',
-            borderRadius: 4, fontFamily: 'monospace', fontWeight: 700,
-          }}
-          onMouseOver={e => { (e.currentTarget.style.color = 'var(--accent)'); (e.currentTarget.style.borderColor = 'rgba(212,168,83,0.4)'); }}
-          onMouseOut={e => { (e.currentTarget.style.color = 'var(--text-muted)'); (e.currentTarget.style.borderColor = 'var(--border)'); }}
-        >?</button>
-        </div>
+      {/* Footer */}
+      <div style={{
+        padding: collapsed ? '8px 0' : '8px 16px',
+        borderTop: '1px solid var(--border)',
+        display: 'flex', flexDirection: collapsed ? 'column' : 'row',
+        alignItems: 'center',
+        justifyContent: collapsed ? 'center' : 'space-between',
+        gap: collapsed ? 2 : 0,
+      }}>
+        {collapsed ? (
+          <>
+            {[
+              { icon: '⚙', title: 'Settings', action: () => router.push('/settings'), active: pathname === '/settings' },
+              { icon: '?', title: 'Keyboard shortcuts', action: onShowShortcuts || (() => {}), active: false },
+              { icon: '↩', title: 'Sign out', action: async () => {
+                const s = createClient(); await s.auth.signOut();
+                localStorage.removeItem('email-accounts'); window.location.href = '/login';
+              }, active: false },
+            ].map(({ icon, title, action, active }) => (
+              <button key={icon} title={title} onClick={action}
+                style={{
+                  color: active ? 'var(--accent)' : 'var(--text-muted)',
+                  fontSize: icon === '?' ? 11 : 14, padding: '5px 0',
+                  width: '100%', textAlign: 'center', fontFamily: icon === '?' ? 'monospace' : undefined, fontWeight: icon === '?' ? 700 : undefined,
+                }}
+                onMouseOver={e => (e.currentTarget.style.color = 'var(--accent)')}
+                onMouseOut={e => (e.currentTarget.style.color = active ? 'var(--accent)' : 'var(--text-muted)')}
+              >{icon}</button>
+            ))}
+          </>
+        ) : (
+          <>
+            <button onClick={async () => {
+              const s = createClient(); await s.auth.signOut();
+              localStorage.removeItem('email-accounts'); window.location.href = '/login';
+            }} style={{ fontSize: 12, color: 'var(--text-muted)' }}
+              onMouseOver={e => (e.currentTarget.style.color = 'var(--text)')}
+              onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+            >Sign out</button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button onClick={() => router.push('/settings')}
+                style={{ fontSize: 12, color: pathname === '/settings' ? 'var(--accent)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}
+                onMouseOver={e => (e.currentTarget.style.color = 'var(--accent)')}
+                onMouseOut={e => (e.currentTarget.style.color = pathname === '/settings' ? 'var(--accent)' : 'var(--text-muted)')}
+              >⚙ Settings</button>
+              <button onClick={onShowShortcuts}
+                style={{
+                  fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', width: 20, height: 20,
+                  border: '1px solid var(--border)', borderRadius: 4, fontFamily: 'monospace', fontWeight: 700,
+                }}
+                onMouseOver={e => { e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.borderColor = 'rgba(212,168,83,0.4)'; }}
+                onMouseOut={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+              >?</button>
+            </div>
+          </>
+        )}
       </div>
     </aside>
   );
