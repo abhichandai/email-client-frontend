@@ -190,9 +190,12 @@ function InboxApp() {
 
     if (filter === 'COMPLETE') return completeEmails;
     if (filter === 'CALENDAR') return activeEmails.filter(isCalendarEmail);
-    if (filter !== 'ALL') return activeEmails.filter(e => e.priority === filter);
-    // ALL: show everything except marketing and complete
-    return activeEmails.filter(e => e.priority !== 'MARKETING');
+    if (filter === 'MARKETING') return activeEmails.filter(e => e.isMarketing);
+    if (filter === 'HIGH') return activeEmails.filter(e => e.priority === 'HIGH' && !e.isMarketing);
+    if (filter === 'MEDIUM') return activeEmails.filter(e => e.priority === 'MEDIUM' && !e.isMarketing);
+    if (filter === 'LOW') return activeEmails.filter(e => e.priority === 'LOW' && !e.isMarketing);
+    // ALL: show everything except marketing
+    return activeEmails.filter(e => !e.isMarketing);
   }, [emails, filter]);
 
   const threads = useMemo(() => groupIntoThreads(filtered), [filtered]);
@@ -200,11 +203,11 @@ function InboxApp() {
   const emailCounts = useMemo(() => {
     const active = emails.filter(e => !e.isComplete);
     return {
-      ALL: active.filter(e => e.priority !== 'MARKETING').length,
-      HIGH: active.filter(e => e.priority === 'HIGH').length,
-      MEDIUM: active.filter(e => e.priority === 'MEDIUM').length,
-      LOW: active.filter(e => e.priority === 'LOW').length,
-      MARKETING: active.filter(e => e.priority === 'MARKETING').length,
+      ALL: active.filter(e => !e.isMarketing).length,
+      HIGH: active.filter(e => e.priority === 'HIGH' && !e.isMarketing).length,
+      MEDIUM: active.filter(e => e.priority === 'MEDIUM' && !e.isMarketing).length,
+      LOW: active.filter(e => e.priority === 'LOW' && !e.isMarketing).length,
+      MARKETING: active.filter(e => e.isMarketing).length,
       CALENDAR: active.filter(isCalendarEmail).length,
       COMPLETE: emails.filter(e => e.isComplete).length,
     };
@@ -258,7 +261,9 @@ function InboxApp() {
               onLoadMore={() => syncFromGmail(true, nextPageToken!)}
               onEmailUpdate={updateEmail}
               onBulkUpdate={bulkUpdateEmails}
-              onComplete={completeEmail}
+              onMarkComplete={(email) => completeEmail(email, true)}
+              onUndoComplete={(email) => completeEmail(email, false)}
+              isCompleteFilter={filter === 'COMPLETE'}
             />
           </div>
           <div style={{ display: isMobile && mobileView !== 'detail' ? 'none' : 'flex', flex: 1, overflow: 'hidden' }}>
@@ -269,7 +274,7 @@ function InboxApp() {
               isMobile={isMobile}
               onEmailUpdate={updateEmail}
               onBulkUpdate={bulkUpdateEmails}
-              onComplete={completeEmail}
+              onMarkComplete={(email) => completeEmail(email, true)}
               accessToken={accounts[0]?.tokens?.access_token}
             />
           </div>

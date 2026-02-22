@@ -21,7 +21,9 @@ function mapDbEmail(row: Record<string, unknown>) {
     snippet: row.snippet, isRead: row.is_read, threadId: row.thread_id,
     accountEmail: row.account_email, priority: row.priority || 'MEDIUM',
     priorityReason: row.priority_reason, priority_override: row.priority_override,
-    body: row.body, bodyHtml: row.body_html, isComplete: row.is_complete || false,
+    body: row.body, bodyHtml: row.body_html,
+    isComplete: row.is_complete || false,
+    isMarketing: row.is_marketing || false,
   };
 }
 
@@ -196,7 +198,10 @@ export async function POST(request: NextRequest) {
     account_email: e.accountEmail, from_address: e.from, subject: e.subject,
     date: e.date ? new Date(e.date).toISOString() : null,
     snippet: e.snippet, is_read: e.isRead, thread_id: e.threadId,
-    priority: e.priority, priority_reason: e.reason, fetched_at: new Date().toISOString(),
+    priority: e.priority === 'MARKETING' ? 'LOW' : (e.priority || 'MEDIUM'),
+    priority_reason: e.reason,
+    is_marketing: e.priority === 'MARKETING',
+    fetched_at: new Date().toISOString(),
   }));
 
   await supabase.from('emails').upsert(toUpsert, { onConflict: 'id,user_id', ignoreDuplicates: false });

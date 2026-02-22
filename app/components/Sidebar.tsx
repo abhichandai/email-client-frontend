@@ -119,8 +119,8 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts, rul
         borderBottom: '1px solid var(--border)',
         background: 'linear-gradient(180deg, rgba(212,168,83,0.04) 0%, transparent 100%)',
       }}>
-        <div style={{ fontFamily: 'Instrument Serif, serif', fontSize: 22, letterSpacing: '-0.3px', color: 'var(--text)' }}>
-          mail<span style={{ color: 'var(--accent)' }}>mfer</span>
+        <div style={{ fontFamily: 'Instrument Serif, serif', fontSize: 22, letterSpacing: '-0.3px' }}>
+          <span style={{ color: 'var(--text)', fontWeight: 600 }}>mail</span><span style={{ color: 'var(--accent)' }}>mfer</span>
         </div>
         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, letterSpacing: '0.15em', textTransform: 'uppercase' }}>Priority Inbox</div>
       </div>

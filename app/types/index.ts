@@ -10,12 +10,12 @@ export interface Email {
   isRead: boolean;
   threadId: string;
   accountEmail: string;
-  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  priority: 'HIGH' | 'MEDIUM' | 'LOW' | 'MARKETING';
   priority_override?: string;
   priorityReason?: string;
   reason?: string;
-  isCompleted?: boolean;
-  category?: 'INBOX' | 'MARKETING';
+  isComplete?: boolean;
+  isMarketing?: boolean;
   // Computed for thread grouping
   threadCount?: number;
   threadEmails?: Email[];
