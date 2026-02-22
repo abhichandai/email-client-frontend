@@ -212,7 +212,7 @@ export default function OnboardPage() {
         </div>
 
         <div style={{ marginTop: 24, fontSize: 13, color: 'var(--text-muted)', opacity: 0.6 }}>
-          Analysing up to 100 emails with Claude AI
+          Analysing up to 50 emails with Claude AI
         </div>
 
         {error && (

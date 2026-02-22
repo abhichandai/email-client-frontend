@@ -4,6 +4,9 @@ import { cookies } from 'next/headers';
 import Anthropic from '@anthropic-ai/sdk';
 import { getValidGmailToken } from '../../../lib/gmail-token';
 
+// Allow up to 60s — onboarding fetches + Claude classification takes ~15-20s
+export const maxDuration = 60;
+
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 async function createSupabase() {
@@ -22,7 +25,7 @@ async function createSupabase() {
 }
 
 async function fetchEmailsForOnboarding(accessToken: string) {
-  const params = new URLSearchParams({ maxResults: '100', q: 'in:inbox -in:trash -in:spam' });
+  const params = new URLSearchParams({ maxResults: '50', q: 'in:inbox -in:trash -in:spam' });
   const listRes = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/messages?${params}`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
