@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { AccountProvider, useAccounts } from './context/accounts';
 import Sidebar from './components/Sidebar';
 import EmailList from './components/EmailList';
@@ -36,6 +37,7 @@ function groupIntoThreads(emails: Email[]): Email[] {
 
 function InboxApp() {
   const { accounts } = useAccounts();
+  const router = useRouter();
   const [emails, setEmails] = useState<Email[]>([]);
   const [selected, setSelected] = useState<Email | null>(null);
   const [loading, setLoading] = useState(true);
@@ -169,6 +171,13 @@ function InboxApp() {
     const interval = setInterval(() => syncFromGmail(false), 3 * 60 * 1000);
     return () => clearInterval(interval);
   }, [accounts.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Check onboarding status — redirect new users
+  useEffect(() => {
+    fetch('/api/onboard').then(r => r.json()).then(data => {
+      if (data.onboarded === false) router.push('/onboarding');
+    }).catch(() => {}); // non-fatal — worst case they skip onboarding
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSearch = useCallback(async (query: string) => {
     setSearchQuery(query);
