@@ -61,9 +61,27 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts, onF
         minHeight: 64,
       }}>
         {!collapsed && (
-          <div style={{ fontFamily: 'Instrument Serif, serif', fontSize: 20, letterSpacing: '-0.3px' }}>
-            <span style={{ color: 'var(--text)', fontWeight: 600 }}>mail</span>
-            <span style={{ color: 'var(--accent)' }}>mfer</span>
+          <div>
+            <div style={{ fontFamily: 'Instrument Serif, serif', fontSize: 20, letterSpacing: '-0.3px' }}>
+              <span style={{ color: 'var(--text)', fontWeight: 600 }}>mail</span>
+              <span style={{ color: 'var(--accent)' }}>mfer</span>
+            </div>
+            <div style={{ display: 'flex', gap: 2, marginTop: 6 }}>
+              {(['light', 'dark', 'system'] as const).map(opt => (
+                <button key={opt} onClick={() => setPreference(opt)}
+                  title={opt.charAt(0).toUpperCase() + opt.slice(1) + ' mode'}
+                  style={{
+                    fontSize: 11, padding: '2px 6px', borderRadius: 4,
+                    background: preference === opt ? 'var(--accent-dim)' : 'transparent',
+                    color: preference === opt ? 'var(--accent)' : 'var(--text-muted)',
+                    border: preference === opt ? '1px solid rgba(212,168,83,0.25)' : '1px solid transparent',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseOver={e => (e.currentTarget.style.color = 'var(--accent)')}
+                  onMouseOut={e => (e.currentTarget.style.color = preference === opt ? 'var(--accent)' : 'var(--text-muted)')}
+                >{opt === 'light' ? '☀' : opt === 'dark' ? '☾' : '⊙'}</button>
+              ))}
+            </div>
           </div>
         )}
         <button onClick={() => setCollapsed(v => !v)}
@@ -207,21 +225,8 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts, onF
             >Sign out</button>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {/* Theme icons */}
-              {(['light', 'dark', 'system'] as const).map((opt, i) => (
-                <button key={opt} onClick={() => setPreference(opt)}
-                  title={opt.charAt(0).toUpperCase() + opt.slice(1) + ' mode'}
-                  style={{
-                    fontSize: 13, color: preference === opt ? 'var(--accent)' : 'var(--text-muted)',
-                    padding: '2px 3px', borderRadius: 3,
-                    borderRight: i < 2 ? '1px solid var(--border)' : undefined, paddingRight: i < 2 ? 6 : 3,
-                  }}
-                  onMouseOver={e => (e.currentTarget.style.color = 'var(--accent)')}
-                  onMouseOut={e => (e.currentTarget.style.color = preference === opt ? 'var(--accent)' : 'var(--text-muted)')}
-                >{opt === 'light' ? '☀' : opt === 'dark' ? '☾' : '⊙'}</button>
-              ))}
               <button onClick={() => router.push('/settings')}
-                style={{ fontSize: 12, color: pathname === '/settings' ? 'var(--accent)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4, marginLeft: 4 }}
+                style={{ fontSize: 12, color: pathname === '/settings' ? 'var(--accent)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}
                 onMouseOver={e => (e.currentTarget.style.color = 'var(--accent)')}
                 onMouseOut={e => (e.currentTarget.style.color = pathname === '/settings' ? 'var(--accent)' : 'var(--text-muted)')}
               >⚙ Settings</button>
