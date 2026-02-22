@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { AccountProvider, useAccounts } from './context/accounts';
-import { createClient } from '../lib/supabase';
 import Sidebar from './components/Sidebar';
 import EmailList from './components/EmailList';
 import EmailDetail from './components/EmailDetail';
@@ -38,7 +37,8 @@ function InboxApp() {
   const { accounts, addAccount } = useAccounts();
   const [emails, setEmails] = useState<Email[]>([]);
   const [selected, setSelected] = useState<Email | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<FilterType>('ALL');
@@ -105,13 +105,19 @@ function InboxApp() {
           });
         }
       }
-    } catch { /* silent */ }
+    } catch { /* silent */ } finally {
+      setLoading(false);
+    }
   }, [accounts]);
 
   // Sync from Gmail (background or forced)
   const syncFromGmail = useCallback(async (showSpinner = true, pageToken?: string, forceRefresh = false) => {
     if (!accounts.length) return;
-    if (showSpinner) pageToken ? setLoadingMore(true) : setLoading(true);
+    if (showSpinner) {
+      pageToken ? setLoadingMore(true) : setLoading(true);
+    } else {
+      setIsSyncing(true);
+    }
     setError('');
     try {
       const res = await fetch('/api/inbox', {
@@ -125,39 +131,45 @@ function InboxApp() {
       const data = await res.json();
 
       if (data.error === 'SESSION_EXPIRED' || res.status === 401) {
-        // Try to refresh the Google token via Supabase
-        try {
-          const supabase = createClient();
-          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-          if (!refreshError && refreshData.session?.provider_token && refreshData.session.user) {
-            const refreshedAccount = {
-              id: refreshData.session.user.id,
-              provider: 'gmail' as const,
-              email: refreshData.session.user.email || accounts[0]?.email || '',
-              tokens: {
-                access_token: refreshData.session.provider_token,
-                refresh_token: refreshData.session.provider_refresh_token || accounts[0]?.tokens?.refresh_token || '',
-                token_type: 'Bearer',
-              },
-            };
-            addAccount(refreshedAccount);
-            // Retry the sync with the fresh token (don't recurse infinitely)
-            if (!pageToken) {
+        const storedRefreshToken = accounts[0]?.tokens?.refresh_token;
+        if (storedRefreshToken) {
+          try {
+            const refreshRes = await fetch('/api/auth/refresh-google-token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ refresh_token: storedRefreshToken }),
+            });
+            const refreshData = await refreshRes.json();
+            if (refreshRes.ok && refreshData.access_token) {
+              const refreshedAccount = {
+                ...accounts[0],
+                tokens: { ...accounts[0].tokens, access_token: refreshData.access_token },
+              };
+              addAccount(refreshedAccount);
               const retryRes = await fetch('/api/inbox', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   accounts: [{ provider: refreshedAccount.provider, email: refreshedAccount.email, tokens: refreshedAccount.tokens }],
-                  rules, forceRefresh,
+                  pageToken, rules, forceRefresh,
                 }),
               });
               const retryData = await retryRes.json();
-              if (retryData.emails) setEmails(retryData.emails);
-              if (retryData.nextPageToken) setNextPageToken(retryData.nextPageToken);
+              if (retryData.emails) {
+                if (pageToken) {
+                  setEmails(prev => {
+                    const newIds = new Set(retryData.emails.map((e: Email) => e.id));
+                    return [...prev.filter(e => !newIds.has(e.id)), ...retryData.emails];
+                  });
+                } else {
+                  setEmails(retryData.emails);
+                }
+                if (retryData.nextPageToken) setNextPageToken(retryData.nextPageToken);
+              }
               return;
             }
-          }
-        } catch { /* fall through to show error */ }
+          } catch { /* fall through */ }
+        }
         setError('Your Gmail session has expired. Please sign out and sign back in to reconnect.');
         return;
       }
@@ -181,6 +193,7 @@ function InboxApp() {
     } finally {
       setLoading(false);
       setLoadingMore(false);
+      setIsSyncing(false);
     }
   }, [accounts, rules, addAccount]);
 
@@ -270,6 +283,16 @@ function InboxApp() {
       </div>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Thin syncing progress bar (Superhuman-style) */}
+        {isSyncing && (
+          <div style={{ height: 2, background: 'var(--bg)', position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
+            <div style={{
+              position: 'absolute', top: 0, left: '-100%', height: '100%', width: '60%',
+              background: 'linear-gradient(90deg, transparent, var(--accent), transparent)',
+              animation: 'syncBar 1.4s ease-in-out infinite',
+            }} />
+          </div>
+        )}
         {error && (
           <div style={{
             padding: '10px 20px', borderBottom: '1px solid rgba(224,92,92,0.2)',
@@ -287,7 +310,7 @@ function InboxApp() {
             width: isMobile ? '100%' : 360, overflow: 'hidden',
           }}>
             <EmailList
-              emails={threads} loading={loading} selected={selected}
+              emails={threads} loading={loading || (isSyncing && emails.length === 0)} selected={selected}
               onSelect={handleSelectEmail}
               onRefresh={() => syncFromGmail(true, undefined, true)}
               isMobile={isMobile} onMenuOpen={() => setSidebarOpen(true)}

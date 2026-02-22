@@ -87,3 +87,8 @@ body::after {
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+@keyframes syncBar {
+  0% { left: -100%; }
+  100% { left: 200%; }
+}
