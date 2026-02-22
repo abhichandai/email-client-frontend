@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAccounts, Account } from '../context/accounts';
+import { useTheme } from '../context/theme';
 import { createClient } from '../../lib/supabase';
 
 interface PriorityRules {
@@ -26,6 +27,7 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 export default function Sidebar({ filter, setFilter, onCompose, emailCounts, rules, onSaveRules, onForceRefresh }: SidebarProps) {
   const { accounts, removeAccount } = useAccounts();
+  const { preference, setPreference } = useTheme();
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [input, setInput] = useState('');
@@ -225,6 +227,29 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts, rul
                 style={{ display: 'block', padding: '10px 16px', fontSize: 13, color: 'var(--text)' }}>Outlook</a>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Theme toggle */}
+      <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)' }}>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Appearance</div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {(['light', 'dark', 'system'] as const).map(opt => (
+            <button
+              key={opt}
+              onClick={() => setPreference(opt)}
+              style={{
+                flex: 1, padding: '5px 0', fontSize: 11, borderRadius: 5,
+                background: preference === opt ? 'var(--accent)' : 'var(--bg-3)',
+                color: preference === opt ? '#0a0a0a' : 'var(--text-muted)',
+                fontWeight: preference === opt ? 600 : 400,
+                border: '1px solid var(--border)',
+                transition: 'all 0.15s',
+              }}
+            >
+              {opt === 'light' ? '☀' : opt === 'dark' ? '☾' : '⊙'} {opt}
+            </button>
+          ))}
         </div>
       </div>
 

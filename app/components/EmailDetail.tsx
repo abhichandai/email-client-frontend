@@ -20,6 +20,14 @@ const PRIORITY_OPTIONS = [
   { value: 'LOW', label: 'Low', color: '#666' },
 ];
 
+// Decode HTML entities in plain text (e.g. &#39; -> ')
+function decodeEntities(str: string): string {
+  if (typeof document === 'undefined') return str;
+  const txt = document.createElement('textarea');
+  txt.innerHTML = str;
+  return txt.value;
+}
+
 function EmailBodyFrame({ html }: { html: string }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(400);
@@ -140,8 +148,8 @@ function SingleEmail({
           ) : bodyHtml ? (
             <EmailBodyFrame html={bodyHtml} />
           ) : body ? (
-            <pre style={{ fontSize: 13, lineHeight: 1.7, color: '#ccc', whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0 }}>
-              {body}
+            <pre style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--text)', whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0 }}>
+              {decodeEntities(body)}
             </pre>
           ) : (
             <p style={{ fontSize: 13, color: '#555', fontStyle: 'italic' }}>{email.snippet || 'No content available.'}</p>
