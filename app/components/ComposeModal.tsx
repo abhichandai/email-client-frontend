@@ -26,6 +26,8 @@ export default function ComposeModal({ accounts, replyTo, onClose }: ComposeModa
   const [aiError, setAiError] = useState('');
   const [lastPrompt, setLastPrompt] = useState('');
 
+  const toRef = useRef<HTMLInputElement>(null);
+
   // Contact autocomplete state
   const [contactSuggestions, setContactSuggestions] = useState<{ email: string; name: string | null; photo_url: string | null; source: string }[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
