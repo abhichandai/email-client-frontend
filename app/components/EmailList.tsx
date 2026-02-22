@@ -210,12 +210,14 @@ function formatDate(dateStr: string) {
   try {
     const d = new Date(dateStr);
     const now = new Date();
-    const diff = now.getTime() - d.getTime();
-    const hours = diff / (1000 * 60 * 60);
-    if (hours < 24) return `${Math.round(hours)}h ago`;
-    const days = Math.floor(hours / 24);
-    if (days === 1) return 'yesterday';
-    if (days < 7) return `${days}d ago`;
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const isToday = d.toDateString() === now.toDateString();
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday = d.toDateString() === yesterday.toDateString();
+
+    if (isToday) return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    if (isYesterday) return 'Yesterday';
+    if (now.getFullYear() === d.getFullYear()) return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   } catch { return ''; }
 }

@@ -7,7 +7,7 @@ export interface Account {
   id: string;
   provider: 'gmail' | 'outlook';
   email: string;
-  tokens: Record<string, unknown>;
+  tokens: { access_token?: string; refresh_token?: string; [key: string]: unknown };
 }
 
 interface AccountContextType {
