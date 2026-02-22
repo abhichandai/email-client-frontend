@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { getValidGmailToken } from '../../../../lib/gmail-token';
 
 async function createSupabase() {
   const cookieStore = await cookies();
@@ -46,8 +47,8 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { emailId, accessToken } = await request.json();
-  if (!emailId || !accessToken) return NextResponse.json({ error: 'Missing params' }, { status: 400 });
+  const { emailId } = await request.json();
+  if (!emailId) return NextResponse.json({ error: 'Missing emailId' }, { status: 400 });
 
   // 1. Check if body is already cached in DB
   const { data: cached } = await supabase
@@ -61,7 +62,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ body: cached.body, bodyHtml: cached.body_html || '' });
   }
 
-  // 2. Fetch from Gmail with full format
+  // 2. Get token server-side and fetch from Gmail
+  let accessToken: string;
+  try {
+    accessToken = await getValidGmailToken(supabase, user.id);
+  } catch {
+    return NextResponse.json({ error: 'Gmail token unavailable' }, { status: 401 });
+  }
+
   const res = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/messages/${emailId}?format=full`,
     { headers: { Authorization: `Bearer ${accessToken}` } }

@@ -13,7 +13,6 @@ interface EmailDetailProps {
   onBulkUpdate?: (emails: Email[]) => void;
   onMarkComplete?: (email: Email) => void;
   onDelete?: (email: Email) => void;
-  accessToken?: string;
 }
 
 const PRIORITY_OPTIONS = [
@@ -73,7 +72,6 @@ function SingleEmail({
   email,
   isExpanded,
   onToggle,
-  accessToken,
   onEmailUpdate,
   onReply,
   showPriorityControls,
@@ -81,7 +79,6 @@ function SingleEmail({
   email: Email;
   isExpanded: boolean;
   onToggle: () => void;
-  accessToken?: string;
   onEmailUpdate?: (updated: Partial<Email> & { id: string }) => void;
   onReply: (email: Email) => void;
   showPriorityControls?: boolean;
@@ -91,12 +88,12 @@ function SingleEmail({
   const [loadingBody, setLoadingBody] = useState(false);
 
   useEffect(() => {
-    if (!isExpanded || body || bodyHtml || !accessToken) return;
+    if (!isExpanded || body || bodyHtml) return;
     setLoadingBody(true);
     fetch('/api/email/body', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emailId: email.id, accessToken }),
+      body: JSON.stringify({ emailId: email.id }),
     })
       .then(r => r.json())
       .then(data => {
@@ -108,7 +105,7 @@ function SingleEmail({
       })
       .catch(() => {})
       .finally(() => setLoadingBody(false));
-  }, [isExpanded, email.id, accessToken, body, bodyHtml, onEmailUpdate]);
+  }, [isExpanded, email.id, body, bodyHtml, onEmailUpdate]);
 
   const senderName = email.from?.replace(/<.*>/, '').trim().replace(/^"|"$/g, '') || 'Unknown';
   const senderEmail = email.from?.match(/<(.+)>/)?.[1] || email.from || '';
@@ -171,7 +168,7 @@ function SingleEmail({
 }
 
 export default function EmailDetail({
-  email, onReply, onClose, isMobile, onEmailUpdate, onBulkUpdate, onMarkComplete, onDelete, accessToken,
+  email, onReply, onClose, isMobile, onEmailUpdate, onBulkUpdate, onMarkComplete, onDelete,
 }: EmailDetailProps) {
   const { accounts } = useAccounts();
   const [showPriorityMenu, setShowPriorityMenu] = useState(false);
@@ -204,7 +201,6 @@ export default function EmailDetail({
   const priority = localPriority || email.priority || 'MEDIUM';
   const isRead = localIsRead !== null ? localIsRead : email.isRead;
   const priorityConfig = PRIORITY_OPTIONS.find(p => p.value === priority) || PRIORITY_OPTIONS[1];
-  const token = (accessToken || accounts[0]?.tokens?.access_token) as string | undefined;
   const senderEmail = email.from?.match(/<(.+)>/)?.[1] || email.from || '';
   const senderName = email.from?.replace(/<.*>/, '').trim().replace(/^"|"$/g, '') || 'Unknown';
   const threadEmails = email.threadEmails || [email];
@@ -236,7 +232,7 @@ export default function EmailDetail({
     await fetch('/api/email/read', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emailId: email.id, isRead: newIsRead, accessToken: token }),
+      body: JSON.stringify({ emailId: email.id, isRead: newIsRead }),
     });
     onEmailUpdate?.({ id: email.id, isRead: newIsRead });
   };
@@ -388,7 +384,6 @@ export default function EmailDetail({
             email={threadEmail}
             isExpanded={expandedIds.has(threadEmail.id)}
             onToggle={() => toggleThread(threadEmail.id)}
-            accessToken={token}
             onEmailUpdate={onEmailUpdate}
             onReply={onReply}
             showPriorityControls={idx === 0}

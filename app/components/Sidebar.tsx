@@ -296,8 +296,8 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts, rul
           <div key={acc.id} style={{ padding: '6px 20px', display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{
               width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-              background: acc.tokens?.access_token ? '#4caf82' : '#666',
-            }} title={acc.tokens?.access_token ? 'Connected' : 'Not connected'} />
+              background: '#4caf82',
+            }} title="Connected" />
             <div style={{ flex: 1, overflow: 'hidden' }}>
               <div style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {acc.email}

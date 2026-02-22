@@ -24,22 +24,28 @@ export async function GET(request: NextRequest) {
     );
 
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-    
-    if (!error && data.session) {
-      // Pass provider_token via URL so client can store it for Gmail API calls
-      const providerToken = data.session.provider_token || '';
-      const providerRefreshToken = data.session.provider_refresh_token || '';
-      const userEmail = data.session.user.email || '';
-      const userId = data.session.user.id || '';
 
-      const redirectUrl = new URL('/', origin);
-      if (providerToken) {
-        redirectUrl.searchParams.set('pt', providerToken);
-        redirectUrl.searchParams.set('prt', providerRefreshToken);
-        redirectUrl.searchParams.set('ue', userEmail);
-        redirectUrl.searchParams.set('uid', userId);
+    if (!error && data.session) {
+      const providerToken = data.session.provider_token;
+      const providerRefreshToken = data.session.provider_refresh_token;
+      const userId = data.session.user.id;
+
+      // Store Gmail tokens server-side in Supabase — never send to browser
+      if (providerToken && userId) {
+        await supabase.from('user_tokens').upsert(
+          {
+            user_id: userId,
+            provider: 'gmail',
+            access_token: providerToken,
+            refresh_token: providerRefreshToken || null,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id' }
+        );
       }
-      return NextResponse.redirect(redirectUrl.toString());
+
+      // Redirect to app — no tokens in URL anymore
+      return NextResponse.redirect(`${origin}/`);
     }
   }
 

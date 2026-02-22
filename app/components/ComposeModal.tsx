@@ -53,7 +53,6 @@ export default function ComposeModal({ accounts, replyTo, onClose }: ComposeModa
           to: to.trim(),
           subject: subject.trim() || '(no subject)',
           body: body.trim(),
-          accessToken: account.tokens?.access_token,
           fromEmail: account.email,
           threadId: replyTo?.threadId,
         }),

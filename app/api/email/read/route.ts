@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { getValidGmailToken } from '../../../../lib/gmail-token';
 
 async function createSupabase() {
   const cookieStore = await cookies();
@@ -15,14 +16,15 @@ export async function POST(request: NextRequest) {
   const supabase = await createSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  
-  const { emailId, isRead, accessToken } = await request.json();
+
+  const { emailId, isRead } = await request.json();
 
   // Update DB
   await supabase.from('emails').update({ is_read: isRead }).eq('id', emailId).eq('user_id', user.id);
 
-  // Update Gmail
-  if (accessToken) {
+  // Update Gmail using server-side token
+  try {
+    const accessToken = await getValidGmailToken(supabase, user.id);
     await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${emailId}/modify`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -31,6 +33,8 @@ export async function POST(request: NextRequest) {
         removeLabelIds: isRead ? ['UNREAD'] : [],
       }),
     });
+  } catch {
+    // DB update already succeeded — Gmail sync failure is non-fatal
   }
 
   return NextResponse.json({ success: true });

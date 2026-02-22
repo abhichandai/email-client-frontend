@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { getValidGmailToken, refreshGmailToken } from '../../../lib/gmail-token';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
@@ -138,8 +139,7 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { accounts, pageToken, rules = {}, forceRefresh = false } = await request.json();
-  if (!accounts?.length) return NextResponse.json({ emails: [], nextPageToken: null });
+  const { pageToken, rules = {}, forceRefresh = false } = await request.json();
 
   // Cache check (5 min) — skip on forceRefresh or pagination
   if (!forceRefresh && !pageToken) {
@@ -153,22 +153,43 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Get Gmail token server-side — no longer accepted from client
+  let accessToken: string;
+  try {
+    accessToken = await getValidGmailToken(supabase, user.id);
+  } catch (e) {
+    const msg = String(e);
+    if (msg.includes('NO_GMAIL_TOKEN') || msg.includes('NO_REFRESH_TOKEN')) {
+      return NextResponse.json({ error: 'SESSION_EXPIRED', emails: [] }, { status: 401 });
+    }
+    return NextResponse.json({ error: msg, emails: [] }, { status: 500 });
+  }
+
+  // Get the user's account email for tagging
+  const { data: { user: fullUser } } = await supabase.auth.getUser();
+  const accountEmail = fullUser?.email || '';
+
   let allEmails: object[] = [];
   let nextPageToken = null;
 
-  for (const account of accounts) {
-    if (account.provider === 'gmail' && account.tokens?.access_token) {
+  try {
+    const result = await fetchGmailEmails(accessToken, pageToken);
+    allEmails = result.emails.map((e: object) => ({ ...e, accountEmail }));
+    nextPageToken = result.nextPageToken;
+  } catch (e) {
+    const msg = String(e);
+    if (msg.includes('AUTH_EXPIRED')) {
+      // Try one more refresh
       try {
-        const result = await fetchGmailEmails(account.tokens.access_token, pageToken);
-        allEmails = allEmails.concat(result.emails.map((e: object) => ({ ...e, accountEmail: account.email })));
+        const newToken = await refreshGmailToken(supabase, user.id);
+        const result = await fetchGmailEmails(newToken, pageToken);
+        allEmails = result.emails.map((e: object) => ({ ...e, accountEmail }));
         nextPageToken = result.nextPageToken;
-      } catch (e) {
-        const msg = String(e);
-        if (msg.includes('AUTH_EXPIRED')) {
-          return NextResponse.json({ error: 'SESSION_EXPIRED', emails: [] }, { status: 401 });
-        }
-        return NextResponse.json({ error: msg, emails: [] }, { status: 500 });
+      } catch {
+        return NextResponse.json({ error: 'SESSION_EXPIRED', emails: [] }, { status: 401 });
       }
+    } else {
+      return NextResponse.json({ error: msg, emails: [] }, { status: 500 });
     }
   }
 

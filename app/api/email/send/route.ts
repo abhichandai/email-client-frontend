@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { getValidGmailToken } from '../../../../lib/gmail-token';
 
 async function createSupabase() {
   const cookieStore = await cookies();
@@ -29,8 +30,16 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { to, subject, body, accessToken, fromEmail, threadId, inReplyTo } = await request.json();
-  if (!to || !body || !accessToken) return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+  const { to, subject, body, fromEmail, threadId, inReplyTo } = await request.json();
+  if (!to || !body) return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+
+  // Get token server-side
+  let accessToken: string;
+  try {
+    accessToken = await getValidGmailToken(supabase, user.id);
+  } catch {
+    return NextResponse.json({ error: 'Gmail token unavailable' }, { status: 401 });
+  }
 
   const raw = makeRfc2822(to, fromEmail || '', subject || '', body, threadId, inReplyTo);
   const encoded = Buffer.from(raw).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');

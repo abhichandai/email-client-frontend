@@ -34,7 +34,7 @@ function groupIntoThreads(emails: Email[]): Email[] {
 }
 
 function InboxApp() {
-  const { accounts, addAccount } = useAccounts();
+  const { accounts } = useAccounts();
   const [emails, setEmails] = useState<Email[]>([]);
   const [selected, setSelected] = useState<Email | null>(null);
   const [loading, setLoading] = useState(true);
@@ -124,53 +124,11 @@ function InboxApp() {
       const res = await fetch('/api/inbox', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          accounts: accounts.map(a => ({ provider: a.provider, email: a.email, tokens: a.tokens })),
-          pageToken, rules, forceRefresh,
-        }),
+        body: JSON.stringify({ pageToken, rules, forceRefresh }),
       });
       const data = await res.json();
 
       if (data.error === 'SESSION_EXPIRED' || res.status === 401) {
-        const storedRefreshToken = accounts[0]?.tokens?.refresh_token;
-        if (storedRefreshToken) {
-          try {
-            const refreshRes = await fetch('/api/auth/refresh-google-token', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ refresh_token: storedRefreshToken }),
-            });
-            const refreshData = await refreshRes.json();
-            if (refreshRes.ok && refreshData.access_token) {
-              const refreshedAccount = {
-                ...accounts[0],
-                tokens: { ...accounts[0].tokens, access_token: refreshData.access_token },
-              };
-              addAccount(refreshedAccount);
-              const retryRes = await fetch('/api/inbox', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  accounts: [{ provider: refreshedAccount.provider, email: refreshedAccount.email, tokens: refreshedAccount.tokens }],
-                  pageToken, rules, forceRefresh,
-                }),
-              });
-              const retryData = await retryRes.json();
-              if (retryData.emails) {
-                if (pageToken) {
-                  setEmails(prev => {
-                    const newIds = new Set(retryData.emails.map((e: Email) => e.id));
-                    return [...prev.filter(e => !newIds.has(e.id)), ...retryData.emails];
-                  });
-                } else {
-                  setEmails(retryData.emails);
-                }
-                if (retryData.nextPageToken) setNextPageToken(retryData.nextPageToken);
-              }
-              return;
-            }
-          } catch { /* fall through */ }
-        }
         setError('Your Gmail session has expired. Please sign out and sign back in to reconnect.');
         return;
       }
@@ -196,7 +154,7 @@ function InboxApp() {
       setLoadingMore(false);
       setIsSyncing(false);
     }
-  }, [accounts, rules, addAccount]);
+  }, [accounts, rules]);
 
   // On mount: instant DB load, then background sync
   useEffect(() => {
@@ -219,13 +177,12 @@ function InboxApp() {
   }, []);
 
   const loadSentEmails = useCallback(async () => {
-    const accessToken = accounts[0]?.tokens?.access_token;
-    if (!accessToken) return;
+    if (!accounts.length) return;
     try {
       const res = await fetch('/api/sent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accessToken }),
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (data.emails) setSentEmails(data.emails);
@@ -233,25 +190,23 @@ function InboxApp() {
   }, [accounts]);
 
   const deleteEmail = useCallback(async (email: Email) => {
-    const accessToken = accounts[0]?.tokens?.access_token;
     setEmails(prev => prev.filter(e => e.id !== email.id));
     if (selected?.id === email.id) { setSelected(null); if (isMobile) setMobileView('list'); }
     await fetch('/api/email/delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emailId: email.id, accessToken }),
+      body: JSON.stringify({ emailId: email.id }),
     });
-  }, [accounts, selected, isMobile]);
+  }, [selected, isMobile]);
 
   const handleSelectEmail = (email: Email) => {
     setSelected(email);
     if (isMobile) setMobileView('detail');
     if (!email.isRead) {
       updateEmail({ id: email.id, isRead: true });
-      const accessToken = accounts[0]?.tokens?.access_token;
       fetch('/api/email/read', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emailId: email.id, isRead: true, accessToken }),
+        body: JSON.stringify({ emailId: email.id, isRead: true }),
       });
     }
   };
@@ -363,7 +318,6 @@ function InboxApp() {
               onBulkUpdate={bulkUpdateEmails}
               onMarkComplete={(email) => completeEmail(email, true)}
               onDelete={deleteEmail}
-              accessToken={accounts[0]?.tokens?.access_token}
             />
           </div>
         </div>

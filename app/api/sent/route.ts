@@ -1,9 +1,29 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+import { getValidGmailToken } from '../../../lib/gmail-token';
 
-export async function POST(req: NextRequest) {
+async function createSupabase() {
+  const cookieStore = await cookies();
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => cookieStore.getAll(), setAll: (s) => s.forEach(({ name, value, options }) => cookieStore.set(name, value, options)) } }
+  );
+}
+
+export async function POST() {
   try {
-    const { accessToken } = await req.json();
-    if (!accessToken) return NextResponse.json({ error: 'No access token' }, { status: 401 });
+    const supabase = await createSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    let accessToken: string;
+    try {
+      accessToken = await getValidGmailToken(supabase, user.id);
+    } catch {
+      return NextResponse.json({ error: 'SESSION_EXPIRED' }, { status: 401 });
+    }
 
     const d = new Date();
     d.setDate(d.getDate() - 30);
