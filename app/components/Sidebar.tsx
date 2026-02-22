@@ -21,6 +21,7 @@ interface SidebarProps {
   rules: PriorityRules;
   onSaveRules: (rules: PriorityRules) => void;
   onForceRefresh: () => void;
+  onShowShortcuts?: () => void;
 }
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
@@ -32,7 +33,7 @@ const DEFAULT_KEYWORDS = [
   'legal', 'offer letter', 'sign', 'NDA',
 ];
 
-export default function Sidebar({ filter, setFilter, onCompose, emailCounts, rules, onSaveRules, onForceRefresh }: SidebarProps) {
+export default function Sidebar({ filter, setFilter, onCompose, emailCounts, rules, onSaveRules, onForceRefresh, onShowShortcuts }: SidebarProps) {
   const { accounts, removeAccount } = useAccounts();
   const { preference, setPreference } = useTheme();
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -348,8 +349,8 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts, rul
         </div>
       </div>
 
-      {/* Sign out */}
-      <div style={{ padding: '8px 20px', borderTop: '1px solid var(--border)' }}>
+      {/* Sign out + shortcuts hint */}
+      <div style={{ padding: '8px 20px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button onClick={async () => {
           const supabase = createClient();
           await supabase.auth.signOut();
@@ -360,6 +361,19 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts, rul
           onMouseOver={e => (e.currentTarget.style.color = 'var(--text)')}
           onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
         >Sign out</button>
+        <button
+          onClick={onShowShortcuts}
+          title="Keyboard shortcuts (?)"
+          style={{
+            fontSize: 11, color: 'var(--text-muted)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 20, height: 20,
+            border: '1px solid var(--border)',
+            borderRadius: 4, fontFamily: 'monospace', fontWeight: 700,
+          }}
+          onMouseOver={e => { (e.currentTarget.style.color = 'var(--accent)'); (e.currentTarget.style.borderColor = 'rgba(212,168,83,0.4)'); }}
+          onMouseOut={e => { (e.currentTarget.style.color = 'var(--text-muted)'); (e.currentTarget.style.borderColor = 'var(--border)'); }}
+        >?</button>
       </div>
     </aside>
   );

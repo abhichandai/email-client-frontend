@@ -6,6 +6,7 @@ import Sidebar from './components/Sidebar';
 import EmailList from './components/EmailList';
 import EmailDetail from './components/EmailDetail';
 import ComposeModal from './components/ComposeModal';
+import KeyboardShortcutsHelp from './components/KeyboardShortcutsHelp';
 import { Email, isCalendarEmail } from './types';
 
 type MobileView = 'list' | 'detail';
@@ -47,6 +48,7 @@ function InboxApp() {
   const [isMobile, setIsMobile] = useState(false);
   const [mobileView, setMobileView] = useState<MobileView>('list');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
   const [sentEmails, setSentEmails] = useState<Email[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -276,6 +278,112 @@ function InboxApp() {
     };
   }, [emails]);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) ||
+        (e.target as HTMLElement)?.isContentEditable;
+
+      // Always allow Escape
+      if (e.key === 'Escape') {
+        if (showShortcutsHelp) { setShowShortcutsHelp(false); return; }
+        if (composing) return;
+        if (searchResults !== null) { clearSearch(); return; }
+        setSelected(null);
+        if (isMobile) setMobileView('list');
+        return;
+      }
+
+      // '?' opens help overlay
+      if (e.key === '?' && !isTyping) {
+        e.preventDefault();
+        setShowShortcutsHelp(s => !s);
+        return;
+      }
+
+      if (isTyping || composing || showShortcutsHelp) return;
+
+      const displayList = searchResults !== null ? searchResults : threads;
+
+      switch (e.key) {
+        case 'j':
+        case 'J': {
+          e.preventDefault();
+          if (!displayList.length) break;
+          const idx = selected ? displayList.findIndex(em => em.id === selected.id) : -1;
+          const next = displayList[Math.min(idx + 1, displayList.length - 1)];
+          if (next) handleSelectEmail(next);
+          break;
+        }
+        case 'k':
+        case 'K': {
+          e.preventDefault();
+          if (!displayList.length) break;
+          const idx = selected ? displayList.findIndex(em => em.id === selected.id) : 0;
+          const prev = displayList[Math.max(idx - 1, 0)];
+          if (prev) handleSelectEmail(prev);
+          break;
+        }
+        case 'Enter': {
+          if (!selected && displayList.length) {
+            e.preventDefault();
+            handleSelectEmail(displayList[0]);
+          }
+          break;
+        }
+        case 'r':
+        case 'R': {
+          if (selected) {
+            e.preventDefault();
+            setReplyTo(selected);
+            setComposing(true);
+          }
+          break;
+        }
+        case 'c':
+        case 'C': {
+          e.preventDefault();
+          setReplyTo(null);
+          setComposing(true);
+          break;
+        }
+        case 'e':
+        case 'E': {
+          if (selected) {
+            e.preventDefault();
+            completeEmail(selected, true);
+          }
+          break;
+        }
+        case 'u':
+        case 'U': {
+          if (selected) {
+            e.preventDefault();
+            const newRead = !selected.isRead;
+            updateEmail({ id: selected.id, isRead: newRead });
+            fetch('/api/email/read', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ emailId: selected.id, isRead: newRead }),
+            });
+          }
+          break;
+        }
+        case '#': {
+          if (selected) {
+            e.preventDefault();
+            deleteEmail(selected);
+          }
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [selected, threads, searchResults, composing, showShortcutsHelp, isMobile, clearSearch, completeEmail, deleteEmail, updateEmail, handleSelectEmail]);
+
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)', position: 'relative' }}>
       {isMobile && sidebarOpen && (
@@ -295,6 +403,7 @@ function InboxApp() {
           onCompose={() => { setReplyTo(null); setComposing(true); setSidebarOpen(false); }}
           emailCounts={emailCounts} rules={rules} onSaveRules={saveRules}
           onForceRefresh={() => syncFromGmail(true, undefined, true)}
+          onShowShortcuts={() => setShowShortcutsHelp(true)}
         />
       </div>
 
@@ -369,6 +478,10 @@ function InboxApp() {
           onClose={() => { setComposing(false); setReplyTo(null); }}
           apiUrl=""
         />
+      )}
+
+      {showShortcutsHelp && (
+        <KeyboardShortcutsHelp onClose={() => setShowShortcutsHelp(false)} />
       )}
     </div>
   );
