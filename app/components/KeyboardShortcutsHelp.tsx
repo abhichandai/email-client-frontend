@@ -23,20 +23,20 @@ export default function KeyboardShortcutsHelp({ onClose }: KeyboardShortcutsHelp
       onClick={onClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
-        background: 'rgba(0,0,0,0.6)',
+        background: 'rgba(0,0,0,0.45)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        backdropFilter: 'blur(2px)',
+        backdropFilter: 'blur(3px)',
       }}
     >
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          background: 'var(--surface)',
+          background: 'var(--bg-2)',
           border: '1px solid var(--border)',
           borderRadius: 12,
           padding: '28px 32px',
           minWidth: 360,
-          boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+          boxShadow: '0 24px 64px var(--shadow)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
