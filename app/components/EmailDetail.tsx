@@ -194,7 +194,7 @@ export default function EmailDetail({
   const priority = localPriority || email.priority || 'MEDIUM';
   const isRead = localIsRead !== null ? localIsRead : email.isRead;
   const priorityConfig = PRIORITY_OPTIONS.find(p => p.value === priority) || PRIORITY_OPTIONS[1];
-  const token = accessToken || accounts[0]?.tokens?.access_token;
+  const token = (accessToken || accounts[0]?.tokens?.access_token) as string | undefined;
   const senderEmail = email.from?.match(/<(.+)>/)?.[1] || email.from || '';
   const senderName = email.from?.replace(/<.*>/, '').trim().replace(/^"|"$/g, '') || 'Unknown';
   const threadEmails = email.threadEmails || [email];
