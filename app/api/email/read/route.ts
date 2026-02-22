@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
   // Update Gmail using server-side token
   try {
     const accessToken = await getValidGmailToken(supabase, user.id);
-    await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${emailId}/modify`, {
+    const gmailRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${emailId}/modify`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -33,7 +33,12 @@ export async function POST(request: NextRequest) {
         removeLabelIds: isRead ? ['UNREAD'] : [],
       }),
     });
-  } catch {
+    if (!gmailRes.ok) {
+      const err = await gmailRes.text();
+      console.error(`Gmail mark-read failed for ${emailId}:`, gmailRes.status, err);
+    }
+  } catch (e) {
+    console.error('Gmail mark-read error:', e);
     // DB update already succeeded — Gmail sync failure is non-fatal
   }
 

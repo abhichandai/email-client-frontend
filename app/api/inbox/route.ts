@@ -210,6 +210,14 @@ export async function POST(request: NextRequest) {
 
   const prioritized = await prioritizeEmails(allEmails, activeRules);
 
+  // Fetch existing is_read states so we don't overwrite user's read/unread choices during sync
+  const emailIds = (prioritized as { id?: string }[]).map((e) => e.id).filter(Boolean) as string[];
+  const { data: existingEmails } = await supabase
+    .from('emails').select('id, is_read').eq('user_id', user.id).in('id', emailIds);
+  const existingReadState = new Map(
+    (existingEmails || []).map((e: { id: string; is_read: boolean }) => [e.id, e.is_read])
+  );
+
   const toUpsert = prioritized.map((e: {
     id?: string; provider?: string; from?: string; accountEmail?: string;
     subject?: string; date?: string; snippet?: string; isRead?: boolean;
@@ -218,7 +226,10 @@ export async function POST(request: NextRequest) {
     id: e.id, user_id: user.id, provider: e.provider || 'gmail',
     account_email: e.accountEmail, from_address: e.from, subject: e.subject,
     date: e.date ? new Date(e.date).toISOString() : null,
-    snippet: e.snippet, is_read: e.isRead, thread_id: e.threadId,
+    snippet: e.snippet,
+    // Preserve DB read state for existing emails — prevents sync from flipping emails back to unread
+    is_read: existingReadState.has(e.id!) ? existingReadState.get(e.id!) : (e.isRead ?? false),
+    thread_id: e.threadId,
     priority: e.priority === 'MARKETING' ? 'LOW' : (e.priority || 'MEDIUM'),
     priority_reason: e.reason,
     is_marketing: e.priority === 'MARKETING',
