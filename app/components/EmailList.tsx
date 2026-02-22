@@ -16,6 +16,9 @@ interface EmailListProps {
   onLoadMore?: () => void;
   onEmailUpdate?: (updated: Partial<Email> & { id: string }) => void;
   onBulkUpdate?: (emails: Email[]) => void;
+  onMarkComplete?: (email: Email) => void;
+  onUndoComplete?: (email: Email) => void;
+  isCompleteFilter?: boolean;
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -40,6 +43,7 @@ function SkeletonRow() {
 export default function EmailList({
   emails, loading, selected, onSelect, onRefresh,
   isMobile, onMenuOpen, loadingMore, hasMore, onLoadMore, onEmailUpdate, onBulkUpdate,
+  onMarkComplete, onUndoComplete, isCompleteFilter,
 }: EmailListProps) {
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   // Track which thread is expanded inline in the list
@@ -258,6 +262,10 @@ export default function EmailList({
             { label: '● Low', action: () => setPriority(contextMenu.email, 'LOW'), color: 'var(--text-muted)' },
             null,
             { label: contextMenu.email.isRead ? '◯ Mark unread' : '● Mark read', action: () => setReadState(contextMenu.email, !contextMenu.email.isRead), color: 'var(--text)' },
+            null,
+            isCompleteFilter
+              ? { label: '↩ Move to inbox', action: () => { setContextMenu(null); onUndoComplete?.(contextMenu.email); }, color: '#4caf82' }
+              : { label: '✓ Complete', action: () => { setContextMenu(null); onMarkComplete?.(contextMenu.email); }, color: '#4caf82' },
           ].map((item, i) =>
             item === null ? (
               <div key={i} style={{ height: 1, background: 'var(--border)', margin: '2px 0' }} />

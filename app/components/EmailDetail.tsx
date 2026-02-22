@@ -11,6 +11,7 @@ interface EmailDetailProps {
   isMobile?: boolean;
   onEmailUpdate?: (updated: Partial<Email> & { id: string }) => void;
   onBulkUpdate?: (emails: Email[]) => void;
+  onMarkComplete?: (email: Email) => void;
   accessToken?: string;
 }
 
@@ -169,7 +170,7 @@ function SingleEmail({
 }
 
 export default function EmailDetail({
-  email, onReply, onClose, isMobile, onEmailUpdate, onBulkUpdate, accessToken,
+  email, onReply, onClose, isMobile, onEmailUpdate, onBulkUpdate, onMarkComplete, accessToken,
 }: EmailDetailProps) {
   const { accounts } = useAccounts();
   const [showPriorityMenu, setShowPriorityMenu] = useState(false);
@@ -320,6 +321,19 @@ export default function EmailDetail({
           onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
         >
           {isRead ? '◯ Mark unread' : '● Mark read'}
+        </button>
+
+        {/* Complete button */}
+        <button
+          onClick={() => email && onMarkComplete?.(email)}
+          style={{
+            padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+            background: 'rgba(76,175,130,0.12)',
+            color: '#4caf82',
+            border: '1px solid rgba(76,175,130,0.3)',
+          }}
+        >
+          ✓ Complete
         </button>
 
         <div style={{ flex: 1 }} />

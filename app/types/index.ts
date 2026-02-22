@@ -14,7 +14,9 @@ export interface Email {
   priority_override?: string;
   priorityReason?: string;
   reason?: string;
-  // Computed for thread grouping (not stored in DB)
+  isCompleted?: boolean;
+  category?: 'INBOX' | 'MARKETING';
+  // Computed for thread grouping
   threadCount?: number;
   threadEmails?: Email[];
 }

@@ -3,49 +3,49 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 async function createSupabase() {
   const cookieStore = await cookies();
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => cookieStore.getAll(),
-        setAll: (toSet) => toSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options)),
-      },
-    }
+    { cookies: { getAll: () => cookieStore.getAll(), setAll: (s) => s.forEach(({ name, value, options }) => cookieStore.set(name, value, options)) } }
   );
 }
 
-// Map Supabase snake_case rows back to the camelCase shape the frontend expects
 function mapDbEmail(row: Record<string, unknown>) {
   return {
-    id: row.id,
-    provider: row.provider,
-    from: row.from_address,
-    subject: row.subject,
-    date: row.date,
-    snippet: row.snippet,
-    body: row.body || undefined,
-    bodyHtml: row.body_html || undefined,
-    isRead: row.is_read,
-    threadId: row.thread_id,
-    accountEmail: row.account_email,
-    priority: row.priority,
-    reason: row.priority_reason,
-    priority_override: row.priority_override,
+    id: row.id, provider: row.provider || 'gmail',
+    from: row.from_address, subject: row.subject, date: row.date,
+    snippet: row.snippet, isRead: row.is_read, threadId: row.thread_id,
+    accountEmail: row.account_email, priority: row.priority || 'MEDIUM',
+    priorityReason: row.priority_reason, priority_override: row.priority_override,
+    body: row.body, bodyHtml: row.body_html, isComplete: row.is_complete || false,
   };
 }
 
+// Build Gmail search query for last 30 days
+function buildGmailQuery() {
+  const d = new Date();
+  d.setDate(d.getDate() - 30);
+  const yyyy = d.getFullYear();
+  const mm = d.getMonth() + 1;
+  const dd = d.getDate();
+  return `in:inbox after:${yyyy}/${mm}/${dd}`;
+}
+
 async function fetchGmailEmails(accessToken: string, pageToken?: string) {
-  const params = new URLSearchParams({ maxResults: '50', labelIds: 'INBOX' });
+  const params = new URLSearchParams({ maxResults: '100', q: buildGmailQuery() });
   if (pageToken) params.set('pageToken', pageToken);
   const listRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${params}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  if (!listRes.ok) throw new Error(`Gmail list error ${listRes.status}: ${await listRes.text()}`);
+  if (!listRes.ok) {
+    const body = await listRes.text();
+    if (listRes.status === 401) throw new Error('AUTH_EXPIRED');
+    throw new Error(`Gmail list error ${listRes.status}: ${body}`);
+  }
   const listData = await listRes.json();
   const messages = listData.messages || [];
 
@@ -76,8 +76,8 @@ async function prioritizeEmails(emails: object[], rules: {
   const rulesText = [
     rules.importantSenders?.length ? `Important senders (mark HIGH): ${rules.importantSenders.join(', ')}` : '',
     rules.importantDomains?.length ? `Important domains (mark HIGH): ${rules.importantDomains.join(', ')}` : '',
-    rules.importantKeywords?.length ? `Important keywords (mark HIGH): ${rules.importantKeywords.join(', ')}` : '',
-    rules.unimportantSenders?.length ? `Unimportant senders (mark LOW): ${rules.unimportantSenders.join(', ')}` : '',
+    rules.importantKeywords?.length ? `Important keywords in subject (mark HIGH): ${rules.importantKeywords.join(', ')}` : '',
+    rules.unimportantSenders?.length ? `Ignore senders (mark LOW): ${rules.unimportantSenders.join(', ')}` : '',
   ].filter(Boolean).join('\n');
 
   const emailList = emails.map((e: { from?: string; subject?: string; snippet?: string }, i) =>
@@ -85,13 +85,16 @@ async function prioritizeEmails(emails: object[], rules: {
   ).join('\n');
 
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-5', max_tokens: 2048,
-    messages: [{ role: 'user', content: `Classify each email as HIGH, MEDIUM, or LOW priority.
-HIGH: Direct personal emails, client messages, urgent/action-required, financial, legal
-MEDIUM: Team updates, follow-ups, newsletters from known contacts
-LOW: Marketing, bulk mail, automated notifications, social media digests
-${rulesText ? `\nUser rules:\n${rulesText}\n` : ''}
-Return ONLY a JSON array: [{"index":1,"priority":"HIGH","reason":"..."}]
+    model: 'claude-sonnet-4-5', max_tokens: 3000,
+    messages: [{ role: 'user', content: `Classify each email into exactly one priority: HIGH, MEDIUM, LOW, or MARKETING.
+
+HIGH: Direct personal messages, client/customer emails, action required, financial (invoices, payments, contracts), legal, job offers, urgent matters
+MEDIUM: Team updates, project follow-ups, newsletters from known contacts, replies in ongoing conversations, GitHub/Vercel notifications about your projects
+LOW: Automated system alerts, order confirmations, receipts, low-relevance notifications
+MARKETING: Newsletters, promotional emails, product marketing, sales outreach, event invitations from companies, subscription digests, social media notifications (Instagram, Twitter, etc.), mass email campaigns
+
+${rulesText ? `User rules (override the above):\n${rulesText}\n` : ''}
+Return ONLY a JSON array. No explanation. No markdown. Example: [{"index":1,"priority":"HIGH","reason":"Direct client request"}]
 
 Emails:
 ${emailList}` }],
@@ -109,30 +112,25 @@ ${emailList}` }],
   }
 }
 
-// GET - load from DB
+// GET - load from DB (instant)
 export async function GET(request: NextRequest) {
   const supabase = await createSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const url = new URL(request.url);
-  const limit = parseInt(url.searchParams.get('limit') || '50');
-  const offset = parseInt(url.searchParams.get('offset') || '0');
-  const priority = url.searchParams.get('priority');
+  const limit = parseInt(url.searchParams.get('limit') || '200');
 
-  let query = supabase.from('emails').select('*').eq('user_id', user.id).order('date', { ascending: false }).range(offset, offset + limit - 1);
-  if (priority) query = query.eq('priority', priority);
-
-  const { data: emails, error } = await query;
+  const { data: emails, error } = await supabase
+    .from('emails').select('*').eq('user_id', user.id)
+    .order('date', { ascending: false }).limit(limit);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Load rules
   const { data: rulesRow } = await supabase.from('priority_rules').select('*').eq('user_id', user.id).single();
-
   return NextResponse.json({ emails: (emails || []).map(mapDbEmail), rules: rulesRow || null, fromCache: true });
 }
 
-// POST - sync from Gmail + save to DB
+// POST - sync from Gmail
 export async function POST(request: NextRequest) {
   const supabase = await createSupabase();
   const { data: { user } } = await supabase.auth.getUser();
@@ -141,20 +139,18 @@ export async function POST(request: NextRequest) {
   const { accounts, pageToken, rules = {}, forceRefresh = false } = await request.json();
   if (!accounts?.length) return NextResponse.json({ emails: [], nextPageToken: null });
 
-  // If not forcing refresh and no pageToken, check if we have cached data < 5 mins old
+  // Cache check (5 min) — skip on forceRefresh or pagination
   if (!forceRefresh && !pageToken) {
     const { data: cached } = await supabase.from('emails').select('fetched_at').eq('user_id', user.id).order('fetched_at', { ascending: false }).limit(1).single();
     if (cached) {
       const age = Date.now() - new Date(cached.fetched_at).getTime();
       if (age < 5 * 60 * 1000) {
-        // Return from cache
-        const { data: emails } = await supabase.from('emails').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(50);
+        const { data: emails } = await supabase.from('emails').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(200);
         return NextResponse.json({ emails: (emails || []).map(mapDbEmail), nextPageToken: null, fromCache: true });
       }
     }
   }
 
-  // Fetch fresh from Gmail
   let allEmails: object[] = [];
   let nextPageToken = null;
 
@@ -165,7 +161,11 @@ export async function POST(request: NextRequest) {
         allEmails = allEmails.concat(result.emails.map((e: object) => ({ ...e, accountEmail: account.email })));
         nextPageToken = result.nextPageToken;
       } catch (e) {
-        return NextResponse.json({ error: String(e), emails: [] }, { status: 500 });
+        const msg = String(e);
+        if (msg.includes('AUTH_EXPIRED')) {
+          return NextResponse.json({ error: 'SESSION_EXPIRED', emails: [] }, { status: 401 });
+        }
+        return NextResponse.json({ error: msg, emails: [] }, { status: 500 });
       }
     }
   }
@@ -174,7 +174,6 @@ export async function POST(request: NextRequest) {
     new Date(b.date || '').getTime() - new Date(a.date || '').getTime()
   );
 
-  // Load user rules from DB if not provided
   let activeRules = rules;
   if (!Object.values(rules).some((v: unknown) => Array.isArray(v) && v.length)) {
     const { data: dbRules } = await supabase.from('priority_rules').select('*').eq('user_id', user.id).single();
@@ -188,7 +187,6 @@ export async function POST(request: NextRequest) {
 
   const prioritized = await prioritizeEmails(allEmails, activeRules);
 
-  // Save to DB (upsert)
   const toUpsert = prioritized.map((e: {
     id?: string; provider?: string; from?: string; accountEmail?: string;
     subject?: string; date?: string; snippet?: string; isRead?: boolean;
