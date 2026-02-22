@@ -11,7 +11,7 @@ import KeyboardShortcutsHelp from './components/KeyboardShortcutsHelp';
 import { Email, isCalendarEmail } from './types';
 
 type MobileView = 'list' | 'detail';
-export type FilterType = 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'MARKETING' | 'CALENDAR' | 'COMPLETE' | 'SENT';
+export type FilterType = 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'MARKETING' | 'CALENDAR' | 'COMPLETE' | 'SENT' | 'SNOOZED';
 
 interface PriorityRules {
   importantSenders: string[];
