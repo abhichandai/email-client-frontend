@@ -22,6 +22,10 @@ interface EmailListProps {
   onDelete?: (email: Email) => void;
   onReply?: (email: Email) => void;
   onReplyAll?: (email: Email) => void;
+  searchQuery?: string;
+  onSearch?: (query: string) => void;
+  onClearSearch?: () => void;
+  isSearchMode?: boolean;
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -47,11 +51,29 @@ export default function EmailList({
   emails, loading, selected, onSelect, onRefresh,
   isMobile, onMenuOpen, loadingMore, hasMore, onLoadMore, onEmailUpdate, onBulkUpdate,
   onMarkComplete, onUndoComplete, isCompleteFilter, onDelete, onReply, onReplyAll,
+  searchQuery = '', onSearch, onClearSearch, isSearchMode = false,
 }: EmailListProps) {
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
-  // Track which thread is expanded inline in the list
   const [expandedThreadId, setExpandedThreadId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [searchFocused, setSearchFocused] = useState(false);
+
+  // '/' key to focus search
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+      if (e.key === 'Escape' && searchFocused) {
+        searchInputRef.current?.blur();
+        onClearSearch?.();
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [searchFocused, onClearSearch]);
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
@@ -111,22 +133,60 @@ export default function EmailList({
     <div style={{ width: isMobile ? '100%' : 360, height: '100%', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--border)', background: 'var(--bg)' }}>
       {/* Header */}
       <div style={{
-        padding: '14px 20px', borderBottom: '1px solid var(--border)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '10px 16px', borderBottom: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center', gap: 8,
         background: 'linear-gradient(180deg, rgba(212,168,83,0.03) 0%, transparent 100%)', flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {isMobile && <button onClick={onMenuOpen} style={{ color: 'var(--text-muted)', fontSize: 18, marginRight: 4 }}>☰</button>}
-          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            {loading ? 'Syncing...' : `${emails.length} messages`}
-          </span>
+        {isMobile && <button onClick={onMenuOpen} style={{ color: 'var(--text-muted)', fontSize: 18, flexShrink: 0 }}>☰</button>}
+
+        {/* Search bar */}
+        <div style={{
+          flex: 1, display: 'flex', alignItems: 'center', gap: 6,
+          background: searchFocused ? 'rgba(212,168,83,0.08)' : 'rgba(255,255,255,0.04)',
+          border: `1px solid ${searchFocused ? 'rgba(212,168,83,0.4)' : 'var(--border)'}`,
+          borderRadius: 6, padding: '5px 10px', transition: 'all 0.15s',
+        }}>
+          <span style={{ color: 'var(--text-muted)', fontSize: 13, flexShrink: 0 }}>⌕</span>
+          <input
+            ref={searchInputRef}
+            value={searchQuery}
+            onChange={e => onSearch?.(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+            placeholder={searchFocused ? 'Search emails...' : 'Search  /'}
+            style={{
+              flex: 1, background: 'none', border: 'none', outline: 'none',
+              color: 'var(--text)', fontSize: 13, minWidth: 0,
+            }}
+          />
+          {isSearchMode && (
+            <button
+              onClick={() => { onClearSearch?.(); searchInputRef.current?.blur(); }}
+              style={{ color: 'var(--text-muted)', fontSize: 16, flexShrink: 0, lineHeight: 1 }}
+            >×</button>
+          )}
         </div>
-        <button onClick={onRefresh} title="Refresh"
-          style={{ color: 'var(--text-muted)', fontSize: 16, transition: 'color 0.15s' }}
-          onMouseOver={e => (e.currentTarget.style.color = 'var(--accent)')}
-          onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
-        >↺</button>
+
+        {/* Refresh button — hide when in search mode */}
+        {!isSearchMode && (
+          <button onClick={onRefresh} title="Refresh"
+            style={{ color: 'var(--text-muted)', fontSize: 16, transition: 'color 0.15s', flexShrink: 0 }}
+            onMouseOver={e => (e.currentTarget.style.color = 'var(--accent)')}
+            onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+          >↺</button>
+        )}
       </div>
+
+      {/* Search context bar */}
+      {isSearchMode && (
+        <div style={{
+          padding: '6px 16px', borderBottom: '1px solid var(--border)',
+          fontSize: 11, color: 'var(--text-muted)',
+          background: 'rgba(212,168,83,0.04)',
+        }}>
+          {loading ? 'Searching...' : `${emails.length} result${emails.length !== 1 ? 's' : ''} for "${searchQuery}"`}
+        </div>
+      )}
 
       {/* List */}
       <div style={{ flex: 1, overflowY: 'auto' }}>

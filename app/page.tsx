@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AccountProvider, useAccounts } from './context/accounts';
 import Sidebar from './components/Sidebar';
 import EmailList from './components/EmailList';
@@ -49,6 +49,10 @@ function InboxApp() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
   const [sentEmails, setSentEmails] = useState<Email[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Email[] | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [rules, setRules] = useState<PriorityRules>({
     importantSenders: [], importantDomains: [], importantKeywords: [], unimportantSenders: [],
   });
@@ -163,6 +167,36 @@ function InboxApp() {
     const interval = setInterval(() => syncFromGmail(false), 3 * 60 * 1000);
     return () => clearInterval(interval);
   }, [accounts.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSearch = useCallback(async (query: string) => {
+    setSearchQuery(query);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    if (!query.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    setIsSearching(true);
+    searchTimeout.current = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query }),
+        });
+        const data = await res.json();
+        setSearchResults(data.emails || []);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+  }, []);
+
+  const clearSearch = useCallback(() => {
+    setSearchQuery('');
+    setSearchResults(null);
+  }, []);
 
   const saveRules = useCallback(async (newRules: PriorityRules) => {
     setRules(newRules);
@@ -292,11 +326,13 @@ function InboxApp() {
             width: isMobile ? '100%' : 360, overflow: 'hidden',
           }}>
             <EmailList
-              emails={threads} loading={loading || (isSyncing && emails.length === 0)} selected={selected}
+              emails={searchResults !== null ? searchResults : threads}
+              loading={loading || (isSyncing && emails.length === 0) || isSearching}
+              selected={selected}
               onSelect={handleSelectEmail}
               onRefresh={() => syncFromGmail(true, undefined, true)}
               isMobile={isMobile} onMenuOpen={() => setSidebarOpen(true)}
-              loadingMore={loadingMore} hasMore={!!nextPageToken}
+              loadingMore={loadingMore} hasMore={searchResults !== null ? false : !!nextPageToken}
               onLoadMore={() => syncFromGmail(true, nextPageToken!)}
               onEmailUpdate={updateEmail}
               onBulkUpdate={bulkUpdateEmails}
@@ -306,6 +342,10 @@ function InboxApp() {
               onDelete={deleteEmail}
               onReply={(email) => { handleSelectEmail(email); setReplyTo(email); setComposing(true); }}
               onReplyAll={(email) => { handleSelectEmail(email); setReplyTo({ ...email, replyAll: true } as Email); setComposing(true); }}
+              searchQuery={searchQuery}
+              onSearch={handleSearch}
+              onClearSearch={clearSearch}
+              isSearchMode={searchResults !== null}
             />
           </div>
           <div style={{ display: isMobile && mobileView !== 'detail' ? 'none' : 'flex', flex: 1, overflow: 'hidden' }}>
