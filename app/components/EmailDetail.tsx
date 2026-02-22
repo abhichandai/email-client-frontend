@@ -12,6 +12,7 @@ interface EmailDetailProps {
   onEmailUpdate?: (updated: Partial<Email> & { id: string }) => void;
   onBulkUpdate?: (emails: Email[]) => void;
   onMarkComplete?: (email: Email) => void;
+  onDelete?: (email: Email) => void;
   accessToken?: string;
 }
 
@@ -170,7 +171,7 @@ function SingleEmail({
 }
 
 export default function EmailDetail({
-  email, onReply, onClose, isMobile, onEmailUpdate, onBulkUpdate, onMarkComplete, accessToken,
+  email, onReply, onClose, isMobile, onEmailUpdate, onBulkUpdate, onMarkComplete, onDelete, accessToken,
 }: EmailDetailProps) {
   const { accounts } = useAccounts();
   const [showPriorityMenu, setShowPriorityMenu] = useState(false);
@@ -294,6 +295,14 @@ export default function EmailDetail({
                   {opt.label}
                 </button>
               ))}
+              <button onClick={() => { setPriority('LOW', false); onEmailUpdate?.({ id: email.id, isMarketing: true }); setShowPriorityMenu(false); }}
+                style={{ width: '100%', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#8b7cf8', textAlign: 'left' }}
+                onMouseOver={e => (e.currentTarget.style.background = 'var(--bg-2)')}
+                onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#8b7cf8' }} />
+                Marketing
+              </button>
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
               <div style={{ padding: '6px 12px 4px', fontSize: 10, color: '#555', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                 Always for {senderName.split(' ')[0]} — updates all their emails
@@ -308,6 +317,14 @@ export default function EmailDetail({
                   Always {opt.label}
                 </button>
               ))}
+              <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+              <button onClick={() => { setShowPriorityMenu(false); onDelete?.(email); }}
+                style={{ width: '100%', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#e05c5c', textAlign: 'left' }}
+                onMouseOver={e => (e.currentTarget.style.background = 'var(--bg-2)')}
+                onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                🗑 Delete
+              </button>
             </div>
           )}
         </div>

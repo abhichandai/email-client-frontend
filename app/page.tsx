@@ -9,7 +9,7 @@ import ComposeModal from './components/ComposeModal';
 import { Email, isCalendarEmail } from './types';
 
 type MobileView = 'list' | 'detail';
-export type FilterType = 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'MARKETING' | 'CALENDAR' | 'COMPLETE';
+export type FilterType = 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'MARKETING' | 'CALENDAR' | 'COMPLETE' | 'SENT';
 
 interface PriorityRules {
   importantSenders: string[];
@@ -48,6 +48,7 @@ function InboxApp() {
   const [mobileView, setMobileView] = useState<MobileView>('list');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
+  const [sentEmails, setSentEmails] = useState<Email[]>([]);
   const [rules, setRules] = useState<PriorityRules>({
     importantSenders: [], importantDomains: [], importantKeywords: [], unimportantSenders: [],
   });
@@ -217,6 +218,31 @@ function InboxApp() {
     } catch { /* silent */ }
   }, []);
 
+  const loadSentEmails = useCallback(async () => {
+    const accessToken = accounts[0]?.tokens?.access_token;
+    if (!accessToken) return;
+    try {
+      const res = await fetch('/api/sent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessToken }),
+      });
+      const data = await res.json();
+      if (data.emails) setSentEmails(data.emails);
+    } catch { /* silent */ }
+  }, [accounts]);
+
+  const deleteEmail = useCallback(async (email: Email) => {
+    const accessToken = accounts[0]?.tokens?.access_token;
+    setEmails(prev => prev.filter(e => e.id !== email.id));
+    if (selected?.id === email.id) { setSelected(null); if (isMobile) setMobileView('list'); }
+    await fetch('/api/email/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emailId: email.id, accessToken }),
+    });
+  }, [accounts, selected, isMobile]);
+
   const handleSelectEmail = (email: Email) => {
     setSelected(email);
     if (isMobile) setMobileView('detail');
@@ -232,6 +258,7 @@ function InboxApp() {
 
   // Filter logic — complete emails only show in COMPLETE tab
   const filtered = useMemo(() => {
+    if (filter === 'SENT') return sentEmails;
     const activeEmails = emails.filter(e => !e.isComplete);
     const completeEmails = emails.filter(e => e.isComplete);
 
@@ -275,7 +302,7 @@ function InboxApp() {
       }}>
         <Sidebar
           accounts={accounts} filter={filter}
-          setFilter={(f) => { setFilter(f); if (isMobile) setSidebarOpen(false); }}
+          setFilter={(f) => { setFilter(f); if (isMobile) setSidebarOpen(false); if (f === 'SENT') loadSentEmails(); }}
           onCompose={() => { setReplyTo(null); setComposing(true); setSidebarOpen(false); }}
           emailCounts={emailCounts} rules={rules} onSaveRules={saveRules}
           onForceRefresh={() => syncFromGmail(true, undefined, true)}
@@ -321,6 +348,9 @@ function InboxApp() {
               onMarkComplete={(email) => completeEmail(email, true)}
               onUndoComplete={(email) => completeEmail(email, false)}
               isCompleteFilter={filter === 'COMPLETE'}
+              onDelete={deleteEmail}
+              onReply={(email) => { handleSelectEmail(email); setReplyTo(email); setComposing(true); }}
+              onReplyAll={(email) => { handleSelectEmail(email); setReplyTo({ ...email, replyAll: true } as Email); setComposing(true); }}
             />
           </div>
           <div style={{ display: isMobile && mobileView !== 'detail' ? 'none' : 'flex', flex: 1, overflow: 'hidden' }}>
@@ -332,6 +362,7 @@ function InboxApp() {
               onEmailUpdate={updateEmail}
               onBulkUpdate={bulkUpdateEmails}
               onMarkComplete={(email) => completeEmail(email, true)}
+              onDelete={deleteEmail}
               accessToken={accounts[0]?.tokens?.access_token}
             />
           </div>

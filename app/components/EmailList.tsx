@@ -19,6 +19,9 @@ interface EmailListProps {
   onMarkComplete?: (email: Email) => void;
   onUndoComplete?: (email: Email) => void;
   isCompleteFilter?: boolean;
+  onDelete?: (email: Email) => void;
+  onReply?: (email: Email) => void;
+  onReplyAll?: (email: Email) => void;
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -43,7 +46,7 @@ function SkeletonRow() {
 export default function EmailList({
   emails, loading, selected, onSelect, onRefresh,
   isMobile, onMenuOpen, loadingMore, hasMore, onLoadMore, onEmailUpdate, onBulkUpdate,
-  onMarkComplete, onUndoComplete, isCompleteFilter,
+  onMarkComplete, onUndoComplete, isCompleteFilter, onDelete, onReply, onReplyAll,
 }: EmailListProps) {
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   // Track which thread is expanded inline in the list
@@ -83,6 +86,15 @@ export default function EmailList({
     await fetch('/api/email/priority', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ emailId: email.id, priority, addToRules: false }),
+    });
+  };
+
+  const setMarketing = async (email: Email) => {
+    setContextMenu(null);
+    onEmailUpdate?.({ id: email.id, isMarketing: true, priority: 'LOW' as const });
+    await fetch('/api/email/priority', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emailId: email.id, priority: 'LOW', isMarketing: true, addToRules: false }),
     });
   };
 
@@ -256,16 +268,21 @@ export default function EmailList({
           <div style={{ padding: '6px 12px', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', borderBottom: '1px solid var(--border)' }}>
             {contextMenu.email.from?.replace(/<.*>/, '').trim()?.split(' ')[0]}
           </div>
-          {[
+          {[\n            { label: '↩ Reply', action: () => { setContextMenu(null); onSelect(contextMenu.email); onReply?.(contextMenu.email); }, color: 'var(--text)' },
+            { label: '↩↩ Reply All', action: () => { setContextMenu(null); onSelect(contextMenu.email); onReplyAll?.(contextMenu.email); }, color: 'var(--text)' },
+            null,
             { label: '● Priority', action: () => setPriority(contextMenu.email, 'HIGH'), color: '#e05c5c' },
             { label: '● Important', action: () => setPriority(contextMenu.email, 'MEDIUM'), color: '#d4a853' },
             { label: '● Low', action: () => setPriority(contextMenu.email, 'LOW'), color: 'var(--text-muted)' },
+            { label: '📣 Marketing', action: () => setMarketing(contextMenu.email), color: '#8b7cf8' },
             null,
             { label: contextMenu.email.isRead ? '◯ Mark unread' : '● Mark read', action: () => setReadState(contextMenu.email, !contextMenu.email.isRead), color: 'var(--text)' },
             null,
             isCompleteFilter
               ? { label: '↩ Move to inbox', action: () => { setContextMenu(null); onUndoComplete?.(contextMenu.email); }, color: '#4caf82' }
               : { label: '✓ Complete', action: () => { setContextMenu(null); onMarkComplete?.(contextMenu.email); }, color: '#4caf82' },
+            null,
+            { label: '🗑 Delete', action: () => { setContextMenu(null); onDelete?.(contextMenu.email); }, color: '#e05c5c' },
           ].map((item, i) =>
             item === null ? (
               <div key={i} style={{ height: 1, background: 'var(--border)', margin: '2px 0' }} />

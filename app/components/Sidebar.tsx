@@ -15,7 +15,7 @@ interface PriorityRules {
 interface SidebarProps {
   accounts: Account[];
   filter: string;
-  setFilter: (f: 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'MARKETING' | 'CALENDAR' | 'COMPLETE') => void;
+  setFilter: (f: 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'MARKETING' | 'CALENDAR' | 'COMPLETE' | 'SENT') => void;
   onCompose: () => void;
   emailCounts: Record<string, number>;
   rules: PriorityRules;
@@ -43,13 +43,14 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts, rul
   const [input, setInput] = useState('');
   const [ruleType, setRuleType] = useState<keyof PriorityRules>('importantSenders');
 
-  const filters: { key: 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'MARKETING' | 'CALENDAR' | 'COMPLETE'; label: string; color: string }[] = [
+  const filters: { key: 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'MARKETING' | 'CALENDAR' | 'COMPLETE' | 'SENT'; label: string; color: string }[] = [
     { key: 'ALL', label: 'All Mail', color: 'var(--text)' },
     { key: 'HIGH', label: 'Priority', color: 'var(--high)' },
     { key: 'MEDIUM', label: 'Important', color: 'var(--med)' },
     { key: 'LOW', label: 'Low', color: 'var(--text-muted)' },
     { key: 'MARKETING', label: '📣 Marketing', color: '#8b7cf8' },
     { key: 'CALENDAR', label: '📅 Calendar', color: '#7ab3d4' },
+    { key: 'SENT', label: '📤 Sent', color: 'var(--text-muted)' },
     { key: 'COMPLETE', label: '✓ Complete', color: '#4caf82' },
   ];
 

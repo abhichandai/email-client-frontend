@@ -16,6 +16,8 @@ export interface Email {
   reason?: string;
   isComplete?: boolean;
   isMarketing?: boolean;
+  isSent?: boolean;
+  to?: string;
   // Computed for thread grouping
   threadCount?: number;
   threadEmails?: Email[];
