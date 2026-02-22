@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAccounts, Account } from '../context/accounts';
 import { useTheme } from '../context/theme';
 import { createClient } from '../../lib/supabase';
@@ -43,6 +43,16 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts, rul
   const [showKeywords, setShowKeywords] = useState(true);
   const [input, setInput] = useState('');
   const [ruleType, setRuleType] = useState<keyof PriorityRules>('importantSenders');
+  const [showSignature, setShowSignature] = useState(false);
+  const [signature, setSignature] = useState('');
+  const [signatureSaving, setSignatureSaving] = useState(false);
+  const [signatureSaved, setSignatureSaved] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/preferences').then(r => r.json()).then(d => {
+      if (d.signature !== undefined) setSignature(d.signature);
+    }).catch(() => {});
+  }, []);
 
   const filters: { key: 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'MARKETING' | 'CALENDAR' | 'COMPLETE' | 'SENT'; label: string; color: string }[] = [
     { key: 'ALL', label: 'All Mail', color: 'var(--text)' },
@@ -324,6 +334,61 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts, rul
             </div>
           )}
         </div>
+      </div>
+
+      {/* Signature */}
+      <div style={{ borderTop: '1px solid var(--border)' }}>
+        <button
+          onClick={() => setShowSignature(!showSignature)}
+          style={{
+            width: '100%', padding: '10px 20px', display: 'flex', alignItems: 'center',
+            justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)',
+          }}
+          onMouseOver={e => (e.currentTarget.style.color = 'var(--text)')}
+          onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+        >
+          <span>✍ Signature</span>
+          <span style={{ fontSize: 10 }}>{showSignature ? '▲' : '▼'}</span>
+        </button>
+        {showSignature && (
+          <div style={{ padding: '0 16px 12px' }}>
+            <textarea
+              value={signature}
+              onChange={e => { setSignature(e.target.value); setSignatureSaved(false); }}
+              placeholder={'Abhi Chand\nabhi@abhichand.com'}
+              rows={4}
+              style={{
+                width: '100%', padding: '8px 10px', fontSize: 12,
+                background: 'var(--bg-3)', color: 'var(--text)',
+                border: '1px solid var(--border)', borderRadius: 6,
+                resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5,
+                boxSizing: 'border-box',
+              }}
+            />
+            <button
+              onClick={async () => {
+                setSignatureSaving(true);
+                await fetch('/api/preferences', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ signature }),
+                });
+                setSignatureSaving(false);
+                setSignatureSaved(true);
+                setTimeout(() => setSignatureSaved(false), 2000);
+              }}
+              style={{
+                marginTop: 6, padding: '5px 12px', fontSize: 11, borderRadius: 5,
+                background: signatureSaved ? '#2d6a4f22' : 'var(--accent)',
+                color: signatureSaved ? '#2d6a4f' : '#0a0a0a',
+                border: signatureSaved ? '1px solid #2d6a4f44' : 'none',
+                fontWeight: 600, transition: 'all 0.2s',
+              }}
+            >
+              {signatureSaving ? 'Saving...' : signatureSaved ? '✓ Saved' : 'Save'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Theme toggle */}

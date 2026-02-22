@@ -18,6 +18,7 @@ export default function ComposeModal({ accounts, replyTo, onClose }: ComposeModa
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
+  const [signature, setSignature] = useState('');
 
   // AI compose state
   const [showAiBar, setShowAiBar] = useState(false);
@@ -90,6 +91,24 @@ export default function ComposeModal({ accounts, replyTo, onClose }: ComposeModa
     }, 60);
   }, [replyTo]);
 
+  // Load signature and set initial body
+  useEffect(() => {
+    fetch('/api/preferences').then(r => r.json()).then(d => {
+      const sig = d.signature || '';
+      setSignature(sig);
+      if (!replyTo && sig) {
+        // New email: pre-fill with signature
+        setBody('\n\n-- \n' + sig);
+      } else if (replyTo && sig) {
+        // Reply: quoted original below signature
+        const date = new Date(replyTo.date || '').toLocaleString();
+        const quoted = (replyTo.snippet || '')
+          .split('\n').map((l: string) => '> ' + l).join('\n');
+        setBody('\n\n-- \n' + sig + '\n\n---\nOn ' + date + ', ' + replyTo.from + ' wrote:\n' + quoted);
+      }
+    }).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (showAiBar) {
       setTimeout(() => aiInputRef.current?.focus(), 60);
@@ -131,7 +150,7 @@ export default function ComposeModal({ accounts, replyTo, onClose }: ComposeModa
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Draft failed');
-      if (data.body) setBody(data.body);
+      if (data.body) setBody(data.body + (signature ? '\n\n-- \n' + signature : ''));
       if (data.subject && !subject) setSubject(data.subject);
       setShowAiBar(false);
       setAiPrompt('');
