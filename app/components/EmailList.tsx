@@ -1,5 +1,17 @@
 'use client';
 
+function decodeHtmlEntities(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
+}
+
 import { useState, useRef, useEffect } from 'react';
 import { Email } from '../types';
 
@@ -256,7 +268,7 @@ export default function EmailList({
                       {email.subject || '(no subject)'}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {email.snippet}
+                      {decodeHtmlEntities(email.snippet)}
                     </div>
                   </button>
 
@@ -290,7 +302,7 @@ export default function EmailList({
                               </span>
                             </div>
                             <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {te.snippet}
+                              {decodeHtmlEntities(te.snippet)}
                             </div>
                           </div>
                         </button>

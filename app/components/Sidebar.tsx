@@ -7,14 +7,14 @@ import { createClient } from '../../lib/supabase';
 
 interface SidebarProps {
   filter: string;
-  setFilter: (f: 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'MARKETING' | 'CALENDAR' | 'COMPLETE' | 'SENT') => void;
+  setFilter: (f: 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'MARKETING' | 'CALENDAR' | 'COMPLETE' | 'SENT' | 'SNOOZED') => void;
   onCompose: () => void;
   emailCounts: Record<string, number>;
   onForceRefresh: () => void;
   onShowShortcuts?: () => void;
 }
 
-const NAV_FILTERS: { key: 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'MARKETING' | 'CALENDAR' | 'COMPLETE' | 'SENT'; label: string; icon: string; color: string }[] = [
+const NAV_FILTERS: { key: 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'MARKETING' | 'CALENDAR' | 'COMPLETE' | 'SENT' | 'SNOOZED'; label: string; icon: string; color: string }[] = [
   { key: 'ALL',       label: 'All Mail',  icon: '✉',  color: 'var(--text)' },
   { key: 'HIGH',      label: 'Priority',  icon: '●',  color: 'var(--high)' },
   { key: 'MEDIUM',    label: 'Important', icon: '●',  color: 'var(--med)' },
@@ -22,6 +22,7 @@ const NAV_FILTERS: { key: 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'MARKETING' | 'CAL
   { key: 'MARKETING', label: 'Marketing', icon: '📣', color: '#8b7cf8' },
   { key: 'CALENDAR',  label: 'Calendar',  icon: '📅', color: '#7ab3d4' },
   { key: 'SENT',      label: 'Sent',      icon: '↗',  color: 'var(--text-muted)' },
+  { key: 'SNOOZED',   label: 'Snoozed',   icon: '🔕', color: '#9b8ea8' },
   { key: 'COMPLETE',  label: 'Complete',  icon: '✓',  color: '#4caf82' },
 ];
 

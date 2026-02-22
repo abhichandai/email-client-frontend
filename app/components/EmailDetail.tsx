@@ -13,6 +13,7 @@ interface EmailDetailProps {
   onBulkUpdate?: (emails: Email[]) => void;
   onMarkComplete?: (email: Email) => void;
   onDelete?: (email: Email) => void;
+  onSnooze?: (email: Email, until: string | null) => void;
 }
 
 const PRIORITY_OPTIONS = [
@@ -86,6 +87,19 @@ function SingleEmail({
   const [body, setBody] = useState(email.body || '');
   const [bodyHtml, setBodyHtml] = useState(email.bodyHtml || '');
   const [loadingBody, setLoadingBody] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+
+  useEffect(() => {
+    if (!isExpanded || suggestions.length > 0 || email.isSent) return;
+    setLoadingSuggestions(true);
+    fetch('/api/ai/reply-suggestions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subject: email.subject, from: email.from, snippet: email.snippet, body }),
+    }).then(r => r.json()).then(d => {
+      if (d.suggestions?.length) setSuggestions(d.suggestions);
+    }).catch(() => {}).finally(() => setLoadingSuggestions(false));
+  }, [isExpanded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!isExpanded || body || bodyHtml) return;
@@ -154,12 +168,41 @@ function SingleEmail({
             <p style={{ fontSize: 13, color: '#555', fontStyle: 'italic' }}>{email.snippet || 'No content available.'}</p>
           )}
 
-          {/* Reply button */}
-          <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+          {/* Reply + AI suggestions */}
+          <div style={{ marginTop: 16 }}>
             <button onClick={() => onReply(email)} style={{
               padding: '6px 16px', background: '#d4a853', color: '#0a0a0a',
-              borderRadius: 6, fontSize: 12, fontWeight: 500,
+              borderRadius: 6, fontSize: 12, fontWeight: 500, marginBottom: suggestions.length ? 12 : 0,
             }}>Reply</button>
+
+            {/* AI reply suggestions */}
+            {loadingSuggestions && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, fontStyle: 'italic' }}>
+                Generating reply suggestions...
+              </div>
+            )}
+            {suggestions.length > 0 && (
+              <div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 6 }}>
+                  Quick reply
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {suggestions.map((s, i) => (
+                    <button key={i}
+                      onClick={() => onReply({ ...email, _suggestedReply: s } as Email & { _suggestedReply: string })}
+                      style={{
+                        padding: '8px 14px', background: 'var(--bg-3)', color: 'var(--text)',
+                        border: '1px solid var(--border)', borderRadius: 8,
+                        fontSize: 12, textAlign: 'left', lineHeight: 1.5,
+                        transition: 'border-color 0.1s',
+                      }}
+                      onMouseOver={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                      onMouseOut={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+                    >{s}</button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -168,13 +211,17 @@ function SingleEmail({
 }
 
 export default function EmailDetail({
-  email, onReply, onClose, isMobile, onEmailUpdate, onBulkUpdate, onMarkComplete, onDelete,
+  email, onReply, onClose, isMobile, onEmailUpdate, onBulkUpdate, onMarkComplete, onDelete, onSnooze,
 }: EmailDetailProps) {
   const { accounts } = useAccounts();
   const [showPriorityMenu, setShowPriorityMenu] = useState(false);
   const [savingPriority, setSavingPriority] = useState(false);
   const [localPriority, setLocalPriority] = useState<string | null>(null);
   const [localIsRead, setLocalIsRead] = useState<boolean | null>(null);
+  const [showSnoozeMenu, setShowSnoozeMenu] = useState(false);
+  const [showSnoozeCustom, setShowSnoozeCustom] = useState(false);
+  const [replySuggestions, setReplySuggestions] = useState<string[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   // Track which thread email is expanded (by id). Default: open the latest (first).
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
@@ -238,7 +285,7 @@ export default function EmailDetail({
   };
 
   const toggleThread = (id: string) => {
-    setExpandedIds(prev => {
+    setExpandedIds((prev: Set<string>) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
@@ -349,6 +396,74 @@ export default function EmailDetail({
           ✓ Complete
         </button>
 
+        {/* Snooze button */}
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => { setShowSnoozeMenu(v => !v); setShowSnoozeCustom(false); }}
+            style={{
+              padding: '5px 10px', borderRadius: 6, fontSize: 12,
+              background: showSnoozeMenu ? 'rgba(155,142,168,0.15)' : 'var(--bg-2)',
+              color: '#9b8ea8', border: '1px solid rgba(155,142,168,0.3)',
+            }}
+          >🔕 Snooze</button>
+          {showSnoozeMenu && (
+            <div style={{
+              position: 'absolute', top: '100%', left: 0, marginTop: 4,
+              background: 'var(--bg-3)', border: '1px solid var(--border)',
+              borderRadius: 8, overflow: 'hidden', zIndex: 50, minWidth: 180,
+              boxShadow: '0 8px 24px var(--shadow)',
+            }}>
+              {[
+                { label: 'Later today', hours: 3 },
+                { label: 'This evening', hours: 8 },
+                { label: 'Tomorrow morning', days: 1 },
+                { label: 'Next week', days: 7 },
+              ].map(({ label, hours, days }) => (
+                <button key={label}
+                  onClick={() => {
+                    if (!email) return;
+                    const until = new Date();
+                    if (hours) until.setHours(until.getHours() + hours);
+                    if (days) { until.setDate(until.getDate() + days); until.setHours(8, 0, 0, 0); }
+                    onSnooze?.(email, until.toISOString());
+                    setShowSnoozeMenu(false);
+                  }}
+                  style={{
+                    display: 'block', width: '100%', padding: '10px 14px', textAlign: 'left',
+                    fontSize: 13, color: 'var(--text)', borderBottom: '1px solid var(--border)',
+                  }}
+                  onMouseOver={e => (e.currentTarget.style.background = 'var(--accent-dim)')}
+                  onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
+                >{label}</button>
+              ))}
+              <button
+                onClick={() => setShowSnoozeCustom(v => !v)}
+                style={{ display: 'block', width: '100%', padding: '10px 14px', textAlign: 'left', fontSize: 13, color: 'var(--text-muted)' }}
+                onMouseOver={e => (e.currentTarget.style.background = 'var(--accent-dim)')}
+                onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
+              >Custom date & time...</button>
+              {showSnoozeCustom && (
+                <div style={{ padding: '8px 14px 12px' }}>
+                  <input type="datetime-local"
+                    min={new Date().toISOString().slice(0, 16)}
+                    onChange={e => {
+                      if (!e.target.value || !email) return;
+                      onSnooze?.(email, new Date(e.target.value).toISOString());
+                      setShowSnoozeMenu(false);
+                      setShowSnoozeCustom(false);
+                    }}
+                    style={{
+                      width: '100%', padding: '6px 8px', fontSize: 12,
+                      background: 'var(--bg)', color: 'var(--text)',
+                      border: '1px solid var(--border)', borderRadius: 4,
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <div style={{ flex: 1 }} />
 
         {/* Thread count badge */}
@@ -382,7 +497,7 @@ export default function EmailDetail({
           <SingleEmail
             key={threadEmail.id}
             email={threadEmail}
-            isExpanded={expandedIds.has(threadEmail.id)}
+            isExpanded={!!expandedIds.has(threadEmail.id)}
             onToggle={() => toggleThread(threadEmail.id)}
             onEmailUpdate={onEmailUpdate}
             onReply={onReply}

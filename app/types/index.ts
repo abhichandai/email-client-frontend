@@ -17,6 +17,7 @@ export interface Email {
   isComplete?: boolean;
   isMarketing?: boolean;
   isSent?: boolean;
+  snoozedUntil?: string | null;
   to?: string;
   // Computed for thread grouping
   threadCount?: number;

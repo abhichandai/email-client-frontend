@@ -244,6 +244,16 @@ function InboxApp() {
     });
   }, [selected, isMobile]);
 
+
+  const snoozeEmail = useCallback(async (email: Email, until: string | null) => {
+    setEmails(prev => prev.map(e => e.id === email.id ? { ...e, snoozedUntil: until } : e));
+    if (until && selected?.id === email.id) { setSelected(null); if (isMobile) setMobileView('list'); }
+    await fetch('/api/email/snooze', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emailId: email.id, until }),
+    });
+  }, [selected, isMobile]);
+
   const handleSelectEmail = (email: Email) => {
     setSelected(email);
     if (isMobile) setMobileView('detail');
@@ -256,26 +266,31 @@ function InboxApp() {
     }
   };
 
-  // Filter logic — complete emails only show in COMPLETE tab
+  // Filter logic — complete/snoozed emails only show in their tabs
   const filtered = useMemo(() => {
     if (filter === 'SENT') return sentEmails;
-    const activeEmails = emails.filter(e => !e.isComplete);
+    const now = new Date();
+    const snoozed = emails.filter(e => e.snoozedUntil && new Date(e.snoozedUntil) > now);
+    const activeEmails = emails.filter(e => !e.isComplete && (!e.snoozedUntil || new Date(e.snoozedUntil) <= now));
     const completeEmails = emails.filter(e => e.isComplete);
 
+    if (filter === 'SNOOZED') return snoozed;
     if (filter === 'COMPLETE') return completeEmails;
     if (filter === 'CALENDAR') return activeEmails.filter(isCalendarEmail);
     if (filter === 'MARKETING') return activeEmails.filter(e => e.isMarketing);
     if (filter === 'HIGH') return activeEmails.filter(e => e.priority === 'HIGH' && !e.isMarketing);
     if (filter === 'MEDIUM') return activeEmails.filter(e => e.priority === 'MEDIUM' && !e.isMarketing);
     if (filter === 'LOW') return activeEmails.filter(e => e.priority === 'LOW' && !e.isMarketing);
-    // ALL: show everything except marketing
+    // ALL: show everything except marketing and snoozed
     return activeEmails.filter(e => !e.isMarketing);
-  }, [emails, filter]);
+  }, [emails, sentEmails, filter]);
 
   const threads = useMemo(() => groupIntoThreads(filtered), [filtered]);
 
   const emailCounts = useMemo(() => {
-    const active = emails.filter(e => !e.isComplete);
+    const now = new Date();
+    const snoozedEmails = emails.filter(e => e.snoozedUntil && new Date(e.snoozedUntil) > now);
+    const active = emails.filter(e => !e.isComplete && (!e.snoozedUntil || new Date(e.snoozedUntil) <= now));
     return {
       ALL: active.filter(e => !e.isMarketing).length,
       HIGH: active.filter(e => e.priority === 'HIGH' && !e.isMarketing).length,
@@ -283,9 +298,11 @@ function InboxApp() {
       LOW: active.filter(e => e.priority === 'LOW' && !e.isMarketing).length,
       MARKETING: active.filter(e => e.isMarketing).length,
       CALENDAR: active.filter(isCalendarEmail).length,
+      SNOOZED: snoozedEmails.length,
       COMPLETE: emails.filter(e => e.isComplete).length,
+      SENT: sentEmails.length,
     };
-  }, [emails]);
+  }, [emails, sentEmails]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -476,6 +493,7 @@ function InboxApp() {
               onBulkUpdate={bulkUpdateEmails}
               onMarkComplete={(email) => completeEmail(email, true)}
               onDelete={deleteEmail}
+              onSnooze={snoozeEmail}
             />
           </div>
         </div>

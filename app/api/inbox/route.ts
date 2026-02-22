@@ -25,6 +25,7 @@ function mapDbEmail(row: Record<string, unknown>) {
     body: row.body, bodyHtml: row.body_html,
     isComplete: row.is_complete || false,
     isMarketing: row.is_marketing || false,
+    snoozedUntil: row.snoozed_until || null,
   };
 }
 
@@ -124,8 +125,10 @@ export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const limit = parseInt(url.searchParams.get('limit') || '200');
 
+  const now = new Date().toISOString();
   const { data: emails, error } = await supabase
     .from('emails').select('*').eq('user_id', user.id)
+    .or(`snoozed_until.is.null,snoozed_until.lte.${now}`)
     .order('date', { ascending: false }).limit(limit);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -147,7 +150,8 @@ export async function POST(request: NextRequest) {
     if (cached) {
       const age = Date.now() - new Date(cached.fetched_at).getTime();
       if (age < 5 * 60 * 1000) {
-        const { data: emails } = await supabase.from('emails').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(200);
+        const cacheNow = new Date().toISOString();
+        const { data: emails } = await supabase.from('emails').select('*').eq('user_id', user.id).or(`snoozed_until.is.null,snoozed_until.lte.${cacheNow}`).order('date', { ascending: false }).limit(200);
         return NextResponse.json({ emails: (emails || []).map(mapDbEmail), nextPageToken: null, fromCache: true });
       }
     }

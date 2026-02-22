@@ -100,11 +100,19 @@ export default function ComposeModal({ accounts, replyTo, onClose }: ComposeModa
         // New email: pre-fill with signature
         setBody('\n\n-- \n' + sig);
       } else if (replyTo && sig) {
-        // Reply: quoted original below signature
-        const date = new Date(replyTo.date || '').toLocaleString();
-        const quoted = (replyTo.snippet || '')
-          .split('\n').map((l: string) => '> ' + l).join('\n');
-        setBody('\n\n-- \n' + sig + '\n\n---\nOn ' + date + ', ' + replyTo.from + ' wrote:\n' + quoted);
+        // Reply: if there's a suggested reply, pre-fill it; otherwise quoted original
+        const suggestedReply = (replyTo as Email & { _suggestedReply?: string })._suggestedReply;
+        if (suggestedReply) {
+          setBody(suggestedReply + '\n\n-- \n' + sig);
+        } else {
+          const date = new Date(replyTo.date || '').toLocaleString();
+          const quoted = (replyTo.snippet || '')
+            .split('\n').map((l: string) => '> ' + l).join('\n');
+          setBody('\n\n-- \n' + sig + '\n\n---\nOn ' + date + ', ' + replyTo.from + ' wrote:\n' + quoted);
+        }
+      } else if (replyTo && !sig) {
+        const suggestedReply = (replyTo as Email & { _suggestedReply?: string })._suggestedReply;
+        if (suggestedReply) setBody(suggestedReply);
       }
     }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
