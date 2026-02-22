@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAccounts, Account } from '../context/accounts';
+import { useTheme } from '../context/theme';
 import { createClient } from '../../lib/supabase';
 
 interface SidebarProps {
@@ -28,6 +29,7 @@ const NAV_FILTERS: { key: 'ALL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'MARKETING' | 'CAL
 
 export default function Sidebar({ filter, setFilter, onCompose, emailCounts, onForceRefresh, onShowShortcuts }: SidebarProps) {
   const { accounts, removeAccount } = useAccounts();
+  const { preference, setPreference } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
@@ -204,9 +206,22 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts, onF
               onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
             >Sign out</button>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {/* Theme icons */}
+              {(['light', 'dark', 'system'] as const).map((opt, i) => (
+                <button key={opt} onClick={() => setPreference(opt)}
+                  title={opt.charAt(0).toUpperCase() + opt.slice(1) + ' mode'}
+                  style={{
+                    fontSize: 13, color: preference === opt ? 'var(--accent)' : 'var(--text-muted)',
+                    padding: '2px 3px', borderRadius: 3,
+                    borderRight: i < 2 ? '1px solid var(--border)' : undefined, paddingRight: i < 2 ? 6 : 3,
+                  }}
+                  onMouseOver={e => (e.currentTarget.style.color = 'var(--accent)')}
+                  onMouseOut={e => (e.currentTarget.style.color = preference === opt ? 'var(--accent)' : 'var(--text-muted)')}
+                >{opt === 'light' ? '☀' : opt === 'dark' ? '☾' : '⊙'}</button>
+              ))}
               <button onClick={() => router.push('/settings')}
-                style={{ fontSize: 12, color: pathname === '/settings' ? 'var(--accent)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}
+                style={{ fontSize: 12, color: pathname === '/settings' ? 'var(--accent)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4, marginLeft: 4 }}
                 onMouseOver={e => (e.currentTarget.style.color = 'var(--accent)')}
                 onMouseOut={e => (e.currentTarget.style.color = pathname === '/settings' ? 'var(--accent)' : 'var(--text-muted)')}
               >⚙ Settings</button>

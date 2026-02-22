@@ -12,7 +12,7 @@ async function createSupabase() {
   );
 }
 
-const CACHE_MINUTES = 5;
+const CACHE_MINUTES = 1;
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
         .eq('is_sent', true)
         .gte('fetched_at', cutoff)
         .order('date', { ascending: false })
-        .limit(50);
+        .limit(100);
 
       if (cached && cached.length > 0) {
         return NextResponse.json({ emails: cached.map(mapDbEmail), fromCache: true });
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     const query = `in:sent after:${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
 
     const listRes = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages?${new URLSearchParams({ maxResults: '50', q: query })}`,
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages?${new URLSearchParams({ maxResults: '100', q: query })}`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
     if (!listRes.ok) {
