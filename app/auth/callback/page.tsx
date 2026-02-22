@@ -37,13 +37,12 @@ function CallbackInner() {
             id: accountId,
             provider,
             email: info.email || info.account?.username || 'unknown',
-            tokens,
           });
           setStatus('Account connected! Redirecting...');
           setTimeout(() => router.push('/'), 800);
         })
         .catch(() => {
-          addAccount({ id: accountId, provider, email: 'Account', tokens });
+          addAccount({ id: accountId, provider, email: 'Account' });
           setTimeout(() => router.push('/'), 800);
         });
     } catch {
