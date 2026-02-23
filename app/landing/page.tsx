@@ -571,11 +571,11 @@ export default function LandingPage() {
                 </div>
                 <div className="preview-emails">
                   {[
-                    { from: 'Stripe Support', subject: 'Re: Missing payouts and failed transactions', snippet: 'Hi Abhi, Thank you for circling back...', priority: '#e05c5c', time: '11:28 AM', bold: true },
-                    { from: 'Keith Lendsy Valdez', subject: 'Re: Invitation: Call w/ Keith @ Tue Feb 24', snippet: 'Accepted. On Mon, Feb 23, 2026 at 6:12 PM...', priority: '#e05c5c', time: '11:13 AM', bold: true },
-                    { from: 'Vercel', subject: 'Failed production deployment on team...', snippet: 'Hi abhichandai, There was an error deploying...', priority: '#d4a853', time: '9:59 AM', bold: true },
-                    { from: 'Microsoft', subject: "You've renewed your Microsoft 365 Business Basic", snippet: 'Your subscription was renewed on February 23...', priority: '#555', time: '8:06 AM', bold: false },
-                    { from: 'Stripe', subject: 'Your $67.58 payout for ACHAND MKT is on the way', snippet: "It's expected to arrive on Monday, February 23...", priority: '#555', time: '12:52 AM', bold: false },
+                    { from: 'Stripe', subject: 'Your $3,995.00 payout is on the way', snippet: "It's expected to arrive in your bank account by...", priority: '#e05c5c', time: '11:28 AM', bold: true },
+                    { from: 'Sarah Chen', subject: 'Re: Q4 contract — need your sign-off today', snippet: 'Hey, legal is waiting on this before EOD Friday...', priority: '#e05c5c', time: '10:47 AM', bold: true },
+                    { from: 'Marcus Webb', subject: 'Re: Series A — investor call moved up', snippet: 'The lead investor wants to move the call to Thursday...', priority: '#d4a853', time: '9:31 AM', bold: true },
+                    { from: 'John Doe', subject: 'Accepted: Team Sync @ Wed Feb 25 10am', snippet: 'John Doe has accepted this invitation.', priority: '#555', time: '8:14 AM', bold: false },
+                    { from: 'Substack', subject: 'New post: The AI tools reshaping how founders work', snippet: 'This week in your inbox — 5 tools worth trying...', priority: '#555', time: 'Yesterday', bold: false },
                   ].map((email) => (
                     <div key={email.subject} className="preview-email">
                       <div className="email-priority" style={{ background: email.priority }} />
