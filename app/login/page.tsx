@@ -24,7 +24,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: 'https://app.mailmfer.com/auth/confirm',
+        redirectTo: 'https://app.tryfocuskeep.com/auth/confirm',
         scopes: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/contacts.readonly',
         queryParams: { access_type: 'offline', prompt: 'consent' },
       },
@@ -110,7 +110,7 @@ export default function LoginPage() {
         {error && <div style={{ color: '#e74c3c', fontSize: 13, textAlign: 'center' }}>{error}</div>}
 
         <div style={{ fontSize: 12, color: '#333', textAlign: 'center', lineHeight: 1.6 }}>
-          By signing in, you grant mailmfer access to read and send emails on your behalf.
+          By signing in, you grant FocusKeep access to read and send emails on your behalf.
         </div>
       </div>
     </div>

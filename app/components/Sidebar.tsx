@@ -63,8 +63,8 @@ export default function Sidebar({ filter, setFilter, onCompose, emailCounts, onF
         {!collapsed && (
           <div>
             <div style={{ fontFamily: 'Instrument Serif, serif', fontSize: 20, letterSpacing: '-0.3px' }}>
-              <span style={{ color: 'var(--text)', fontWeight: 600 }}>mail</span>
-              <span style={{ color: 'var(--accent)' }}>mfer</span>
+              <span style={{ color: 'var(--text)', fontWeight: 600 }}>Focus</span>
+              <span style={{ color: 'var(--accent)' }}>Keep</span>
             </div>
             <div style={{ display: 'flex', gap: 2, marginTop: 6 }}>
               {(['light', 'dark', 'system'] as const).map(opt => (

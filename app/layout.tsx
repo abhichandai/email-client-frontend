@@ -3,8 +3,8 @@ import './globals.css';
 import { ThemeProvider } from './context/theme';
 
 export const metadata: Metadata = {
-  title: 'Inbox — Priority Email',
-  description: 'Your AI-powered priority inbox',
+  title: 'FocusKeep — AI Priority Inbox',
+  description: 'Your AI-powered priority inbox by FocusKeep',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
