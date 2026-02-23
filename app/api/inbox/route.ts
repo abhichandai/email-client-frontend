@@ -98,6 +98,8 @@ LOW: Automated system alerts, order confirmations, receipts, low-relevance notif
 MARKETING: Newsletters, promotional emails, product marketing, sales outreach, event invitations from companies, subscription digests, social media notifications (Instagram, Twitter, etc.), mass email campaigns
 
 ${rulesText ? `User rules (override the above):\n${rulesText}\n` : ''}
+CALENDAR RULE (always applies, cannot be overridden): Any email whose subject starts with "Invitation:", "Accepted:", "Tentative:", "Declined:", "Canceled:", or "Updated invitation:" must be classified as LOW.
+
 Return ONLY a JSON array. No explanation. No markdown. Example: [{"index":1,"priority":"HIGH","reason":"Direct client request"}]
 
 Emails:

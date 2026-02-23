@@ -376,7 +376,7 @@ function InboxApp() {
         }
         case 'r':
         case 'R': {
-          if (selected) {
+          if (selected && !e.metaKey && !e.ctrlKey) {
             e.preventDefault();
             setReplyTo(selected);
             setComposing(true);
