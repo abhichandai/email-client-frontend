@@ -39,14 +39,20 @@ function EmailBodyFrame({ html }: { html: string }) {
     if (!iframe) return;
     const doc = iframe.contentDocument || iframe.contentWindow?.document;
     if (!doc) return;
+    const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+    const textColor = isDark ? '#ccc' : '#1a1a1a';
+    const blockquoteColor = isDark ? '#888' : '#555';
+    const blockquoteBorder = isDark ? '#444' : '#ccc';
+    const codeBackground = isDark ? '#111' : '#f0f0f0';
+    const codeColor = isDark ? '#ccc' : '#1a1a1a';
     doc.open();
     doc.write(`<!DOCTYPE html><html><head><style>
       body { margin: 0; padding: 0; font-family: -apple-system, sans-serif; font-size: 14px;
-             line-height: 1.6; color: #ccc; background: transparent; word-wrap: break-word; }
+             line-height: 1.6; color: ${textColor}; background: transparent; word-wrap: break-word; }
       a { color: #d4a853; }
       img { max-width: 100%; height: auto; }
-      blockquote { border-left: 2px solid #333; margin: 8px 0; padding-left: 12px; color: #666; }
-      pre, code { background: #111; padding: 2px 6px; border-radius: 3px; font-size: 12px; }
+      blockquote { border-left: 2px solid ${blockquoteBorder}; margin: 8px 0; padding-left: 12px; color: ${blockquoteColor}; }
+      pre, code { background: ${codeBackground}; color: ${codeColor}; padding: 2px 6px; border-radius: 3px; font-size: 12px; }
     </style></head><body>${html}</body></html>`);
     doc.close();
     const resize = () => {

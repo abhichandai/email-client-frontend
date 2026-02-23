@@ -112,7 +112,14 @@ export default function ComposeModal({ accounts, replyTo, onClose }: ComposeModa
         }
       } else if (replyTo && !sig) {
         const suggestedReply = (replyTo as Email & { _suggestedReply?: string })._suggestedReply;
-        if (suggestedReply) setBody(suggestedReply);
+        if (suggestedReply) {
+          setBody(suggestedReply);
+        } else {
+          const date = new Date(replyTo.date || '').toLocaleString();
+          const quoted = (replyTo.snippet || '')
+            .split('\n').map((l: string) => '> ' + l).join('\n');
+          setBody('\n\n---\nOn ' + date + ', ' + replyTo.from + ' wrote:\n' + quoted);
+        }
       }
     }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
