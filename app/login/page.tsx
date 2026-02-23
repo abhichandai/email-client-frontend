@@ -58,11 +58,10 @@ export default function LoginPage() {
         gap: 24,
       }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>✉</div>
-          <div style={{ fontSize: 24, fontWeight: 700, color: '#fff', letterSpacing: '-0.5px' }}>
-            mail<span style={{ color: '#d4a853' }}>mfer</span>
+          <div style={{ fontSize: 24, fontFamily: 'Instrument Serif, serif', fontWeight: 400, color: '#fff', letterSpacing: '-0.3px', marginBottom: 4 }}>
+            Focus<span style={{ color: '#d4a853' }}>Keep</span>
           </div>
-          <div style={{ fontSize: 13, color: '#555', marginTop: 6 }}>Your AI-powered priority inbox</div>
+          <div style={{ fontSize: 13, color: '#555', marginTop: 4 }}>Your AI-powered priority inbox</div>
         </div>
 
         <div style={{ width: '100%', height: 1, background: '#1a1a1a' }} />

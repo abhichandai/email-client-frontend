@@ -25,7 +25,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Allow login, auth callback, onboarding, and landing page
-  if (pathname.startsWith('/login') || pathname.startsWith('/auth') || pathname.startsWith('/onboard') || pathname.startsWith('/settings') || pathname === '/landing' || pathname.startsWith('/landing/')) {
+  if (pathname.startsWith('/login') || pathname.startsWith('/auth') || pathname.startsWith('/onboard') || pathname.startsWith('/settings') || pathname === '/' || pathname === '/landing' || pathname.startsWith('/landing/')) {
     return supabaseResponse;
   }
 
