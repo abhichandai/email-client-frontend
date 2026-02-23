@@ -214,7 +214,15 @@ export async function POST(request: NextRequest) {
     };
   }
 
-  const prioritized = await prioritizeEmails(allEmails, activeRules);
+  // Hard-enforce LOW for calendar notification emails before AI sees them
+  const CALENDAR_PREFIXES = /^(Invitation|Accepted|Tentative|Declined|Canceled|Updated invitation):/i;
+  const calendarIds = new Set(
+    allEmails.filter((e: { subject?: string }) => CALENDAR_PREFIXES.test(e.subject || '')).map((e: { id?: string }) => e.id)
+  );
+  const prioritized = (await prioritizeEmails(allEmails, activeRules)).map((e: { id?: string; priority?: string; reason?: string }) => {
+    if (calendarIds.has(e.id)) return { ...e, priority: 'LOW', reason: 'Calendar notification' };
+    return e;
+  });
 
   // Fetch existing is_read states so we don't overwrite user's read/unread choices during sync
   const emailIds = (prioritized as { id?: string }[]).map((e) => e.id).filter(Boolean) as string[];
