@@ -40,7 +40,7 @@ function buildGmailQuery() {
 }
 
 async function fetchGmailEmails(accessToken: string, pageToken?: string) {
-  const params = new URLSearchParams({ maxResults: '100', q: buildGmailQuery() });
+  const params = new URLSearchParams({ maxResults: '50', q: buildGmailQuery() });
   if (pageToken) params.set('pageToken', pageToken);
   const listRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${params}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -252,12 +252,12 @@ export async function POST(request: NextRequest) {
 
   await supabase.from('emails').upsert(toUpsert, { onConflict: 'id,user_id', ignoreDuplicates: false });
 
-  // Map response to match the same shape as DB reads (isMarketing derived from priority)
-  const responseEmails = prioritized.map((e: Record<string, unknown>) => ({
-    ...e,
-    isMarketing: e.priority === 'MARKETING',
-    priority: e.priority === 'MARKETING' ? 'LOW' : (e.priority || 'MEDIUM'),
-  }));
+  // Read back from DB so response includes all fields (isComplete, snoozedUntil, etc.)
+  const now = new Date().toISOString();
+  const { data: freshEmails } = await supabase
+    .from('emails').select('*').eq('user_id', user.id)
+    .or(`snoozed_until.is.null,snoozed_until.lte.${now}`)
+    .order('date', { ascending: false }).limit(200);
 
-  return NextResponse.json({ emails: responseEmails, nextPageToken });
+  return NextResponse.json({ emails: (freshEmails || []).map(mapDbEmail), nextPageToken });
 }
