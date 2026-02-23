@@ -15,9 +15,9 @@ export default function LandingPage() {
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         :root {
-          --bg:         #111110;
-          --bg-2:       #191918;
-          --bg-3:       #222220;
+          --bg:         #191919;
+          --bg-2:       #202020;
+          --bg-3:       #2f2f2f;
           --border:     #2a2a28;
           --text:       #e3e3e0;
           --text-muted: #7a7a75;
@@ -74,8 +74,8 @@ export default function LandingPage() {
 
         .logo {
           font-family: 'Instrument Serif', serif;
-          font-size: 22px;
-          letter-spacing: -0.3px;
+          font-size: 24px;
+          letter-spacing: 0px;
           text-decoration: none;
         }
         .logo-focus { color: var(--text); }
@@ -211,6 +211,7 @@ export default function LandingPage() {
           background: var(--bg-2);
           overflow: hidden;
           box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03);
+          text-align: left;
         }
         .preview-bar {
           padding: 12px 16px;
@@ -524,7 +525,7 @@ export default function LandingPage() {
         <section className="hero">
           <div className="badge">
             <span className="badge-dot" />
-            AI-powered · Gmail · No subscription
+            AI-powered · Gmail
           </div>
 
           <h1>
@@ -533,7 +534,7 @@ export default function LandingPage() {
           </h1>
 
           <p>
-            FocusKeep uses Claude AI to triage your inbox in real time —
+            FocusKeep uses AI to triage your inbox in real time —
             surfacing what's urgent, burying what's noise.
           </p>
 
@@ -570,11 +571,11 @@ export default function LandingPage() {
                 </div>
                 <div className="preview-emails">
                   {[
-                    { from: 'Sarah Chen', subject: 'Q4 contract — need your sign-off', snippet: 'Hey, legal is waiting on this before EOD...', priority: '#e05c5c', time: '9:14am', bold: true },
-                    { from: 'Marcus Webb', subject: 'Re: Series A timeline', snippet: 'The lead investor wants to move the call up...', priority: '#e05c5c', time: '8:52am', bold: true },
-                    { from: 'James Liu', subject: 'Design review notes attached', snippet: 'A few things I flagged from yesterday\'s session', priority: '#d4a853', time: 'Yesterday', bold: false },
-                    { from: 'Newsletter', subject: 'Your weekly digest is here', snippet: '5 stories you might have missed this week', priority: '#3a3a3a', time: 'Mon', bold: false },
-                    { from: 'GitHub', subject: '[email-client] PR #44 merged', snippet: 'pr-branch has been merged into main', priority: '#3a3a3a', time: 'Mon', bold: false },
+                    { from: 'Stripe Support', subject: 'Re: Missing payouts and failed transactions', snippet: 'Hi Abhi, Thank you for circling back...', priority: '#e05c5c', time: '11:28 AM', bold: true },
+                    { from: 'Keith Lendsy Valdez', subject: 'Re: Invitation: Call w/ Keith @ Tue Feb 24', snippet: 'Accepted. On Mon, Feb 23, 2026 at 6:12 PM...', priority: '#e05c5c', time: '11:13 AM', bold: true },
+                    { from: 'Vercel', subject: 'Failed production deployment on team...', snippet: 'Hi abhichandai, There was an error deploying...', priority: '#d4a853', time: '9:59 AM', bold: true },
+                    { from: 'Microsoft', subject: "You've renewed your Microsoft 365 Business Basic", snippet: 'Your subscription was renewed on February 23...', priority: '#555', time: '8:06 AM', bold: false },
+                    { from: 'Stripe', subject: 'Your $67.58 payout for ACHAND MKT is on the way', snippet: "It's expected to arrive on Monday, February 23...", priority: '#555', time: '12:52 AM', bold: false },
                   ].map((email) => (
                     <div key={email.subject} className="preview-email">
                       <div className="email-priority" style={{ background: email.priority }} />
@@ -685,7 +686,7 @@ export default function LandingPage() {
             <span className="logo-focus">Focus</span>
             <span className="logo-keep">Keep</span>
           </a>
-          <span className="footer-note">Built with Claude AI · tryfocuskeep.com</span>
+          <span className="footer-note">AI-powered email · tryfocuskeep.com</span>
         </footer>
       </div>
     </>
