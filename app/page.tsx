@@ -572,13 +572,27 @@ function InboxApp() {
 
       {/* Undo Send Toast */}
       {pendingSend && (
-        <div style={{
-          position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)',
-          zIndex: 9999, display: 'flex', alignItems: 'center', gap: 0,
-          background: 'var(--bg-2)', border: '1px solid var(--border)',
-          borderRadius: 10, boxShadow: '0 4px 24px rgba(0,0,0,0.28)',
-          overflow: 'hidden', fontSize: 13,
-        }}>
+        <div
+          style={{
+            position: 'fixed', bottom: 28, left: 28,
+            zIndex: 9999, display: 'flex', alignItems: 'center', gap: 0,
+            background: 'var(--bg-2)', border: '1px solid var(--border)',
+            borderRadius: 10, boxShadow: '0 4px 24px rgba(0,0,0,0.28)',
+            overflow: 'hidden', fontSize: 13,
+          }}
+          onMouseEnter={e => {
+            const btn = e.currentTarget.querySelector<HTMLElement>('[data-sendnow]');
+            const div = e.currentTarget.querySelector<HTMLElement>('[data-sendnow-divider]');
+            if (btn) { btn.style.width = 'auto'; btn.style.padding = '11px 16px'; btn.style.opacity = '1'; }
+            if (div) div.style.width = '1px';
+          }}
+          onMouseLeave={e => {
+            const btn = e.currentTarget.querySelector<HTMLElement>('[data-sendnow]');
+            const div = e.currentTarget.querySelector<HTMLElement>('[data-sendnow-divider]');
+            if (btn) { btn.style.width = '0'; btn.style.padding = '11px 0'; btn.style.opacity = '0'; }
+            if (div) div.style.width = '0';
+          }}
+        >
           {/* Countdown bar */}
           <div style={{
             position: 'absolute', bottom: 0, left: 0,
@@ -586,7 +600,7 @@ function InboxApp() {
             width: `${(sendCountdown / 15) * 100}%`,
             transition: 'width 1s linear',
           }} />
-          <div style={{ padding: '11px 16px', color: 'var(--text-muted)', fontWeight: 500 }}>
+          <div style={{ padding: '11px 16px', color: 'var(--text-muted)', fontWeight: 500, whiteSpace: 'nowrap' }}>
             Sending in {sendCountdown}s…
           </div>
           <div style={{ width: 1, background: 'var(--border)', alignSelf: 'stretch' }} />
@@ -595,20 +609,23 @@ function InboxApp() {
             style={{
               padding: '11px 16px', color: 'var(--text)', fontWeight: 600,
               background: 'transparent', fontSize: 13,
-              transition: 'background 0.15s',
+              transition: 'background 0.15s', whiteSpace: 'nowrap',
             }}
             onMouseOver={e => (e.currentTarget.style.background = 'var(--bg-3)')}
             onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
           >
             Undo
           </button>
-          <div style={{ width: 1, background: 'var(--border)', alignSelf: 'stretch' }} />
+          {/* Send Now — hidden until hover */}
+          <div data-sendnow-divider style={{ width: 0, background: 'var(--border)', alignSelf: 'stretch', transition: 'width 0.2s' }} />
           <button
+            data-sendnow
             onClick={sendNow}
             style={{
-              padding: '11px 16px', color: 'var(--accent)', fontWeight: 600,
+              width: 0, padding: '11px 0', opacity: 0, overflow: 'hidden',
+              color: 'var(--accent)', fontWeight: 600,
               background: 'transparent', fontSize: 13,
-              transition: 'background 0.15s',
+              transition: 'width 0.2s, padding 0.2s, opacity 0.2s', whiteSpace: 'nowrap',
             }}
             onMouseOver={e => (e.currentTarget.style.background = 'rgba(212,168,83,0.08)')}
             onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
