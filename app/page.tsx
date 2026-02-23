@@ -51,6 +51,13 @@ function InboxApp() {
   const [mobileView, setMobileView] = useState<MobileView>('list');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
+
+  // Undo send state
+  interface PendingSend { to: string; subject: string; body: string; fromEmail: string; threadId?: string; replyAll?: boolean; }
+  const [pendingSend, setPendingSend] = useState<PendingSend | null>(null);
+  const [sendCountdown, setSendCountdown] = useState(0);
+  const sendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sendIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
   const [sentEmails, setSentEmails] = useState<Email[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -65,7 +72,55 @@ function InboxApp() {
     const check = () => setIsMobile(window.innerWidth < 768);
     check();
     window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
+    const executeSend = async (payload: { to: string; subject: string; body: string; fromEmail: string; threadId?: string; replyAll?: boolean }) => {
+    try {
+      await fetch('/api/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    } catch (e) {
+      console.error('Send failed:', e);
+    }
+  };
+
+  const queueSend = (payload: { to: string; subject: string; body: string; fromEmail: string; threadId?: string; replyAll?: boolean }) => {
+    // Clear any existing pending send
+    if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
+    if (sendIntervalRef.current) clearInterval(sendIntervalRef.current);
+    setPendingSend(payload);
+    setSendCountdown(15);
+    let remaining = 15;
+    sendIntervalRef.current = setInterval(() => {
+      remaining -= 1;
+      setSendCountdown(remaining);
+      if (remaining <= 0) {
+        if (sendIntervalRef.current) clearInterval(sendIntervalRef.current);
+      }
+    }, 1000);
+    sendTimerRef.current = setTimeout(() => {
+      executeSend(payload);
+      setPendingSend(null);
+      setSendCountdown(0);
+    }, 15000);
+  };
+
+  const cancelSend = () => {
+    if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
+    if (sendIntervalRef.current) clearInterval(sendIntervalRef.current);
+    setPendingSend(null);
+    setSendCountdown(0);
+  };
+
+  const sendNow = () => {
+    if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
+    if (sendIntervalRef.current) clearInterval(sendIntervalRef.current);
+    if (pendingSend) executeSend(pendingSend);
+    setPendingSend(null);
+    setSendCountdown(0);
+  };
+
+  return () => window.removeEventListener('resize', check);
   }, []);
 
   const updateEmail = useCallback((updated: Partial<Email> & { id: string }) => {
@@ -513,7 +568,56 @@ function InboxApp() {
           accounts={accounts} replyTo={replyTo}
           onClose={() => { setComposing(false); setReplyTo(null); }}
           apiUrl=""
+          onSendQueued={queueSend}
         />
+      )}
+
+      {/* Undo Send Toast */}
+      {pendingSend && (
+        <div style={{
+          position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 9999, display: 'flex', alignItems: 'center', gap: 0,
+          background: 'var(--bg-2)', border: '1px solid var(--border)',
+          borderRadius: 10, boxShadow: '0 4px 24px rgba(0,0,0,0.28)',
+          overflow: 'hidden', fontSize: 13,
+        }}>
+          {/* Countdown bar */}
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0,
+            height: 2, background: 'var(--accent)',
+            width: `${(sendCountdown / 15) * 100}%`,
+            transition: 'width 1s linear',
+          }} />
+          <div style={{ padding: '11px 16px', color: 'var(--text-muted)', fontWeight: 500 }}>
+            Sending in {sendCountdown}s…
+          </div>
+          <div style={{ width: 1, background: 'var(--border)', alignSelf: 'stretch' }} />
+          <button
+            onClick={cancelSend}
+            style={{
+              padding: '11px 16px', color: 'var(--text)', fontWeight: 600,
+              background: 'transparent', fontSize: 13,
+              transition: 'background 0.15s',
+            }}
+            onMouseOver={e => (e.currentTarget.style.background = 'var(--bg-3)')}
+            onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
+          >
+            Undo
+          </button>
+          <div style={{ width: 1, background: 'var(--border)', alignSelf: 'stretch' }} />
+          <button
+            onClick={sendNow}
+            style={{
+              padding: '11px 16px', color: 'var(--accent)', fontWeight: 600,
+              background: 'transparent', fontSize: 13,
+              transition: 'background 0.15s',
+            }}
+            onMouseOver={e => (e.currentTarget.style.background = 'rgba(212,168,83,0.08)')}
+            onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
+          >
+            Send Now ⚡
+          </button>
+        </div>
       )}
 
       {showShortcutsHelp && (

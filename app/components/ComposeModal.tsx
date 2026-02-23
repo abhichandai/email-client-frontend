@@ -4,14 +4,24 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Account } from '../context/accounts';
 import { Email } from '../types';
 
+interface SendPayload {
+  to: string;
+  subject: string;
+  body: string;
+  fromEmail: string;
+  threadId?: string;
+  replyAll?: boolean;
+}
+
 interface ComposeModalProps {
   accounts: Account[];
   replyTo: Email | null;
   onClose: () => void;
   apiUrl: string;
+  onSendQueued?: (payload: SendPayload) => void;
 }
 
-export default function ComposeModal({ accounts, replyTo, onClose }: ComposeModalProps) {
+export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued }: ComposeModalProps) {
   const [to, setTo] = useState(replyTo ? (replyTo.from.match(/<(.+)>/)?.[1] || replyTo.from) : '');
   const [subject, setSubject] = useState(replyTo ? `Re: ${replyTo.subject}` : '');
   const [body, setBody] = useState('');
@@ -179,27 +189,35 @@ export default function ComposeModal({ accounts, replyTo, onClose }: ComposeModa
 
   const handleSend = async () => {
     if (!account || !to.trim() || !body.trim() || sending) return;
-    setSending(true);
-    setError('');
-    try {
-      const res = await fetch('/api/email/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: to.trim(),
-          subject: subject.trim() || '(no subject)',
-          body: body.trim(),
-          fromEmail: account.email,
-          threadId: replyTo?.threadId,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Send failed');
-      setSent(true);
-      setTimeout(onClose, 1000);
-    } catch (e) {
-      setError(String(e));
-      setSending(false);
+    const payload: SendPayload = {
+      to: to.trim(),
+      subject: subject.trim() || '(no subject)',
+      body: body.trim(),
+      fromEmail: account.email,
+      threadId: replyTo?.threadId,
+      replyAll: (replyTo as Email & { replyAll?: boolean })?.replyAll,
+    };
+    if (onSendQueued) {
+      onSendQueued(payload);
+      onClose();
+    } else {
+      // Fallback: send immediately (no undo)
+      setSending(true);
+      setError('');
+      try {
+        const res = await fetch('/api/email/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Send failed');
+        setSent(true);
+        setTimeout(onClose, 1000);
+      } catch (e) {
+        setError(String(e));
+        setSending(false);
+      }
     }
   };
 
