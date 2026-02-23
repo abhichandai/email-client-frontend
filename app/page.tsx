@@ -72,55 +72,7 @@ function InboxApp() {
     const check = () => setIsMobile(window.innerWidth < 768);
     check();
     window.addEventListener('resize', check);
-    const executeSend = async (payload: { to: string; subject: string; body: string; fromEmail: string; threadId?: string; replyAll?: boolean }) => {
-    try {
-      await fetch('/api/email/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-    } catch (e) {
-      console.error('Send failed:', e);
-    }
-  };
-
-  const queueSend = (payload: { to: string; subject: string; body: string; fromEmail: string; threadId?: string; replyAll?: boolean }) => {
-    // Clear any existing pending send
-    if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
-    if (sendIntervalRef.current) clearInterval(sendIntervalRef.current);
-    setPendingSend(payload);
-    setSendCountdown(15);
-    let remaining = 15;
-    sendIntervalRef.current = setInterval(() => {
-      remaining -= 1;
-      setSendCountdown(remaining);
-      if (remaining <= 0) {
-        if (sendIntervalRef.current) clearInterval(sendIntervalRef.current);
-      }
-    }, 1000);
-    sendTimerRef.current = setTimeout(() => {
-      executeSend(payload);
-      setPendingSend(null);
-      setSendCountdown(0);
-    }, 15000);
-  };
-
-  const cancelSend = () => {
-    if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
-    if (sendIntervalRef.current) clearInterval(sendIntervalRef.current);
-    setPendingSend(null);
-    setSendCountdown(0);
-  };
-
-  const sendNow = () => {
-    if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
-    if (sendIntervalRef.current) clearInterval(sendIntervalRef.current);
-    if (pendingSend) executeSend(pendingSend);
-    setPendingSend(null);
-    setSendCountdown(0);
-  };
-
-  return () => window.removeEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
   }, []);
 
   const updateEmail = useCallback((updated: Partial<Email> & { id: string }) => {
@@ -473,6 +425,52 @@ function InboxApp() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [selected, threads, searchResults, composing, showShortcutsHelp, isMobile, clearSearch, completeEmail, deleteEmail, updateEmail, handleSelectEmail]);
+
+  // Undo send helpers
+  const executeSend = async (payload: { to: string; subject: string; body: string; fromEmail: string; threadId?: string; replyAll?: boolean }) => {
+    try {
+      await fetch('/api/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    } catch (e) {
+      console.error('Send failed:', e);
+    }
+  };
+
+  const queueSend = (payload: { to: string; subject: string; body: string; fromEmail: string; threadId?: string; replyAll?: boolean }) => {
+    if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
+    if (sendIntervalRef.current) clearInterval(sendIntervalRef.current);
+    setPendingSend(payload);
+    setSendCountdown(15);
+    let remaining = 15;
+    sendIntervalRef.current = setInterval(() => {
+      remaining -= 1;
+      setSendCountdown(remaining);
+      if (remaining <= 0 && sendIntervalRef.current) clearInterval(sendIntervalRef.current);
+    }, 1000);
+    sendTimerRef.current = setTimeout(() => {
+      executeSend(payload);
+      setPendingSend(null);
+      setSendCountdown(0);
+    }, 15000);
+  };
+
+  const cancelSend = () => {
+    if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
+    if (sendIntervalRef.current) clearInterval(sendIntervalRef.current);
+    setPendingSend(null);
+    setSendCountdown(0);
+  };
+
+  const sendNow = () => {
+    if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
+    if (sendIntervalRef.current) clearInterval(sendIntervalRef.current);
+    if (pendingSend) executeSend(pendingSend);
+    setPendingSend(null);
+    setSendCountdown(0);
+  };
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)', position: 'relative' }}>
