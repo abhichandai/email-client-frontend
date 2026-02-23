@@ -74,8 +74,17 @@ function InboxApp() {
   }, []);
 
   const bulkUpdateEmails = useCallback((freshEmails: Email[]) => {
-    setEmails(freshEmails);
-    setSelected(prev => prev ? (freshEmails.find(e => e.id === prev.id) || prev) : null);
+    // Build a lookup by id so we only patch priority fields — preserve isComplete, isMarketing, snoozedUntil, etc.
+    const updates = new Map(freshEmails.map(e => [e.id, e]));
+    setEmails(prev => prev.map(e => {
+      const update = updates.get(e.id);
+      return update ? { ...e, priority: update.priority, priority_override: update.priority_override } : e;
+    }));
+    setSelected(prev => {
+      if (!prev) return null;
+      const update = updates.get(prev.id);
+      return update ? { ...prev, priority: update.priority, priority_override: update.priority_override } : prev;
+    });
   }, []);
 
   // Mark email/thread as complete
