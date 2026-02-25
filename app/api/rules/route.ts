@@ -24,12 +24,13 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const rules = await request.json();
+  // Support both snake_case (from settings page) and camelCase (legacy) key names
   const { data, error } = await supabase.from('priority_rules').upsert({
     user_id: user.id,
-    important_senders: rules.importantSenders || [],
-    important_domains: rules.importantDomains || [],
-    important_keywords: rules.importantKeywords || [],
-    unimportant_senders: rules.unimportantSenders || [],
+    important_senders: rules.important_senders ?? rules.importantSenders ?? [],
+    important_domains: rules.important_domains ?? rules.importantDomains ?? [],
+    important_keywords: rules.important_keywords ?? rules.importantKeywords ?? [],
+    unimportant_senders: rules.unimportant_senders ?? rules.unimportantSenders ?? [],
     updated_at: new Date().toISOString(),
   }, { onConflict: 'user_id' }).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
