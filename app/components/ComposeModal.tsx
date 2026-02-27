@@ -24,7 +24,17 @@ interface ComposeModalProps {
 export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued }: ComposeModalProps) {
   const [to, setTo] = useState(replyTo ? (replyTo.from.match(/<(.+)>/)?.[1] || replyTo.from) : '');
   const [subject, setSubject] = useState(replyTo ? `Re: ${replyTo.subject}` : '');
-  const [body, setBody] = useState('');
+  // Build quoted body immediately from replyTo (no async wait needed)
+  const getInitialBody = (reply: Email | null) => {
+    if (!reply) return '';
+    const suggestedReply = (reply as Email & { _suggestedReply?: string })._suggestedReply;
+    if (suggestedReply) return suggestedReply;
+    const date = new Date(reply.date || '').toLocaleString();
+    const quoted = (reply.snippet || '').split('\n').map((l: string) => '> ' + l).join('\n');
+    return '\n\n---\nOn ' + date + ', ' + reply.from + ' wrote:\n' + quoted;
+  };
+
+  const [body, setBody] = useState(() => getInitialBody(replyTo));
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
@@ -96,41 +106,37 @@ export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued 
 
   useEffect(() => {
     setTimeout(() => {
-      if (replyTo) bodyRef.current?.focus();
-      else toRef.current?.focus();
+      if (replyTo) {
+        bodyRef.current?.focus();
+        bodyRef.current?.setSelectionRange(0, 0);
+        if (bodyRef.current) bodyRef.current.scrollTop = 0;
+      } else {
+        toRef.current?.focus();
+      }
     }, 60);
   }, [replyTo]);
 
-  // Load signature and set initial body
+  // Load signature only — quoted body is already set synchronously above
   useEffect(() => {
     fetch('/api/preferences').then(r => r.json()).then(d => {
       const sig = d.signature || '';
       setSignature(sig);
-      if (!replyTo && sig) {
+      if (!sig) return;
+      if (!replyTo) {
         // New email: pre-fill with signature
         setBody('\n\n-- \n' + sig);
-      } else if (replyTo && sig) {
-        // Reply: if there's a suggested reply, pre-fill it; otherwise quoted original
-        const suggestedReply = (replyTo as Email & { _suggestedReply?: string })._suggestedReply;
-        if (suggestedReply) {
-          setBody(suggestedReply + '\n\n-- \n' + sig);
-        } else {
-          const date = new Date(replyTo.date || '').toLocaleString();
-          const quoted = (replyTo.snippet || '')
-            .split('\n').map((l: string) => '> ' + l).join('\n');
-          setBody('\n\n-- \n' + sig + '\n\n---\nOn ' + date + ', ' + replyTo.from + ' wrote:\n' + quoted);
-        }
-      } else if (replyTo && !sig) {
-        const suggestedReply = (replyTo as Email & { _suggestedReply?: string })._suggestedReply;
-        if (suggestedReply) {
-          setBody(suggestedReply);
-        } else {
-          const date = new Date(replyTo.date || '').toLocaleString();
-          const quoted = (replyTo.snippet || '')
-            .split('\n').map((l: string) => '> ' + l).join('\n');
-          setBody('\n\n---\nOn ' + date + ', ' + replyTo.from + ' wrote:\n' + quoted);
-        }
+      } else {
+        // Reply: prepend signature before the quoted block, keep cursor at top
+        setBody(prev => '\n\n-- \n' + sig + '\n' + prev.trimStart());
       }
+      // Reposition cursor to top after signature is inserted
+      requestAnimationFrame(() => {
+        if (bodyRef.current) {
+          bodyRef.current.focus();
+          bodyRef.current.setSelectionRange(0, 0);
+          bodyRef.current.scrollTop = 0;
+        }
+      });
     }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
