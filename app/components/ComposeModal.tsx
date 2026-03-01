@@ -157,17 +157,26 @@ export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued 
     }
   }, [showAiBar]);
 
+  const isDirty = () => subject.trim().length > 0 || body.trim().length > 0;
+
+  const handleClose = () => {
+    if (isDirty()) {
+      if (!window.confirm('Discard this email? Your draft will be lost.')) return;
+    }
+    onClose();
+  };
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (showAiBar) { setShowAiBar(false); return; }
-        onClose();
+        handleClose();
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleSend();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [to, body, showAiBar]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [to, subject, body, showAiBar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAiDraft = async (prompt: string) => {
     if (!prompt.trim() || aiLoading) return;
@@ -267,7 +276,7 @@ export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued 
         backdropFilter: 'blur(4px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
     >
       <div style={{
         width: isExpanded ? 'min(960px, 92vw)' : 680,
@@ -291,17 +300,24 @@ export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued 
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
           <span>{replyTo ? 'Reply' : 'New Message'}</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <button
               onClick={() => setIsExpanded(v => !v)}
               title={isExpanded ? 'Collapse' : 'Expand'}
-              style={{ color: 'var(--text-muted)', fontSize: 16, lineHeight: 1, opacity: 0.5, padding: '2px 4px' }}
-              onMouseOver={e => (e.currentTarget.style.opacity = '1')}
-              onMouseOut={e => (e.currentTarget.style.opacity = '0.5')}
+              style={{
+                color: 'var(--text-muted)', lineHeight: 1,
+                padding: '4px 8px', borderRadius: 5,
+                fontSize: 13, fontWeight: 500,
+                border: '1px solid var(--border)',
+                background: isExpanded ? 'var(--accent-dim)' : 'transparent',
+                display: 'flex', alignItems: 'center', gap: 4,
+              }}
+              onMouseOver={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
+              onMouseOut={e => (e.currentTarget.style.borderColor = 'var(--border)')}
             >
-              {isExpanded ? '⊡' : '⊞'}
+              {isExpanded ? '↙ Collapse' : '↗ Expand'}
             </button>
-            <button onClick={onClose} style={{ color: 'var(--text-muted)', fontSize: 20, lineHeight: 1, opacity: 0.5 }}
+            <button onClick={handleClose} style={{ color: 'var(--text-muted)', fontSize: 20, lineHeight: 1, opacity: 0.5 }}
               onMouseOver={e => (e.currentTarget.style.opacity = '1')}
               onMouseOut={e => (e.currentTarget.style.opacity = '0.5')}
             >×</button>
@@ -552,7 +568,7 @@ export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued 
           >📎</button>
 
           <button
-            onClick={onClose}
+            onClick={handleClose}
             style={{ marginLeft: error ? 0 : 0, fontSize: 12, color: 'var(--text-muted)', padding: '6px 10px', borderRadius: 6 }}
             onMouseOver={e => (e.currentTarget.style.color = 'var(--text)')}
             onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
