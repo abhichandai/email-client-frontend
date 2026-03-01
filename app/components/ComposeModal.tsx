@@ -52,11 +52,14 @@ export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const isResizing = useRef(false);
+  const justResized = useRef(false);
   const resizeStart = useRef({ x: 0, y: 0, w: 0, h: 0 });
 
   const startResize = (e: React.MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     isResizing.current = true;
+    justResized.current = false;
     resizeStart.current = { x: e.clientX, y: e.clientY, w: modalSize.width, h: modalSize.height };
     const onMove = (ev: MouseEvent) => {
       if (!isResizing.current) return;
@@ -66,6 +69,9 @@ export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued 
     };
     const onUp = () => {
       isResizing.current = false;
+      justResized.current = true;
+      // Clear the flag after the click event has had a chance to fire
+      setTimeout(() => { justResized.current = false; }, 100);
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
@@ -298,7 +304,7 @@ export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued 
         backdropFilter: 'blur(4px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}
-      onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
+      onClick={(e) => { if (justResized.current) return; if (e.target === e.currentTarget) handleClose(); }}
     >
       <div ref={modalRef} style={{
         width: modalSize.width, height: modalSize.height,
