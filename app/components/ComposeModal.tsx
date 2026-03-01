@@ -47,9 +47,31 @@ export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued 
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
   const [signature, setSignature] = useState('');
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [modalSize, setModalSize] = useState({ width: 700, height: 560 });
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const isResizing = useRef(false);
+  const resizeStart = useRef({ x: 0, y: 0, w: 0, h: 0 });
+
+  const startResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizing.current = true;
+    resizeStart.current = { x: e.clientX, y: e.clientY, w: modalSize.width, h: modalSize.height };
+    const onMove = (ev: MouseEvent) => {
+      if (!isResizing.current) return;
+      const newW = Math.max(520, Math.min(resizeStart.current.w + (ev.clientX - resizeStart.current.x), window.innerWidth * 0.95));
+      const newH = Math.max(420, Math.min(resizeStart.current.h + (ev.clientY - resizeStart.current.y), window.innerHeight * 0.95));
+      setModalSize({ width: newW, height: newH });
+    };
+    const onUp = () => {
+      isResizing.current = false;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
 
   // AI compose state
   const [showAiBar, setShowAiBar] = useState(false);
@@ -278,10 +300,9 @@ export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued 
       }}
       onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
     >
-      <div style={{
-        width: isExpanded ? 'min(960px, 92vw)' : 680,
-        maxWidth: '96vw',
-        maxHeight: isExpanded ? '92vh' : '85vh',
+      <div ref={modalRef} style={{
+        width: modalSize.width, height: modalSize.height,
+        maxWidth: '96vw', maxHeight: '96vh',
         background: 'var(--compose-bg)',
         borderRadius: 12,
         boxShadow: '0 32px 80px rgba(0,0,0,0.5)',
@@ -289,7 +310,7 @@ export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued 
         display: 'flex', flexDirection: 'column',
         overflow: 'hidden',
         animation: 'composeIn 0.18s ease',
-        transition: 'width 0.2s ease, max-height 0.2s ease',
+        position: 'relative',
       }}>
         {/* Title */}
         <div style={{
@@ -300,28 +321,10 @@ export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued 
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
           <span>{replyTo ? 'Reply' : 'New Message'}</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button
-              onClick={() => setIsExpanded(v => !v)}
-              title={isExpanded ? 'Collapse' : 'Expand'}
-              style={{
-                color: 'var(--text-muted)', lineHeight: 1,
-                padding: '4px 8px', borderRadius: 5,
-                fontSize: 13, fontWeight: 500,
-                border: '1px solid var(--border)',
-                background: isExpanded ? 'var(--accent-dim)' : 'transparent',
-                display: 'flex', alignItems: 'center', gap: 4,
-              }}
-              onMouseOver={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
-              onMouseOut={e => (e.currentTarget.style.borderColor = 'var(--border)')}
-            >
-              {isExpanded ? '↙ Collapse' : '↗ Expand'}
-            </button>
-            <button onClick={handleClose} style={{ color: 'var(--text-muted)', fontSize: 20, lineHeight: 1, opacity: 0.5 }}
-              onMouseOver={e => (e.currentTarget.style.opacity = '1')}
-              onMouseOut={e => (e.currentTarget.style.opacity = '0.5')}
-            >×</button>
-          </div>
+          <button onClick={handleClose} style={{ color: 'var(--text-muted)', fontSize: 20, lineHeight: 1, opacity: 0.5 }}
+            onMouseOver={e => (e.currentTarget.style.opacity = '1')}
+            onMouseOut={e => (e.currentTarget.style.opacity = '0.5')}
+          >×</button>
         </div>
 
         {/* Fields */}
@@ -456,7 +459,7 @@ export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued 
             onChange={e => setBody(e.target.value)}
             placeholder={replyTo ? 'Write your reply...' : 'Write your message...'}
             style={{
-              width: '100%', flex: 1, minHeight: isExpanded ? 400 : 260,
+              width: '100%', flex: 1, minHeight: 200,
               background: 'transparent',
               color: 'var(--text)', border: 'none', fontSize: 14,
               outline: 'none', padding: '16px 24px',
@@ -576,6 +579,25 @@ export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued 
             Discard
           </button>
           </div>
+        </div>
+
+        {/* Resize handle */}
+        <div
+          onMouseDown={startResize}
+          style={{
+            position: 'absolute', bottom: 0, right: 0,
+            width: 18, height: 18,
+            cursor: 'nwse-resize',
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end',
+            padding: '3px',
+            opacity: 0.35,
+          }}
+          onMouseOver={e => (e.currentTarget.style.opacity = '0.7')}
+          onMouseOut={e => (e.currentTarget.style.opacity = '0.35')}
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="var(--text-muted)">
+            <path d="M9 1L1 9M9 5L5 9M9 9" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
         </div>
       </div>
 
