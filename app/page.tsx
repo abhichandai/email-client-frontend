@@ -427,7 +427,7 @@ function InboxApp() {
   }, [selected, threads, searchResults, composing, showShortcutsHelp, isMobile, clearSearch, completeEmail, deleteEmail, updateEmail, handleSelectEmail]);
 
   // Undo send helpers
-  const executeSend = async (payload: { to: string; subject: string; body: string; fromEmail: string; threadId?: string; replyAll?: boolean }) => {
+  const executeSend = async (payload: { to: string; subject: string; body: string; fromEmail: string; threadId?: string; replyAll?: boolean; attachments?: {name: string; type: string; data: string; size: number}[] }) => {
     try {
       await fetch('/api/email/send', {
         method: 'POST',
@@ -439,7 +439,7 @@ function InboxApp() {
     }
   };
 
-  const queueSend = (payload: { to: string; subject: string; body: string; fromEmail: string; threadId?: string; replyAll?: boolean }) => {
+  const queueSend = (payload: { to: string; subject: string; body: string; fromEmail: string; threadId?: string; replyAll?: boolean; attachments?: {name: string; type: string; data: string; size: number}[] }) => {
     if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
     if (sendIntervalRef.current) clearInterval(sendIntervalRef.current);
     setPendingSend(payload);

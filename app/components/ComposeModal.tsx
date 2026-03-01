@@ -4,6 +4,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Account } from '../context/accounts';
 import { Email } from '../types';
 
+interface Attachment {
+  name: string;
+  type: string;
+  data: string; // base64
+  size: number;
+}
+
 interface SendPayload {
   to: string;
   subject: string;
@@ -11,6 +18,7 @@ interface SendPayload {
   fromEmail: string;
   threadId?: string;
   replyAll?: boolean;
+  attachments?: Attachment[];
 }
 
 interface ComposeModalProps {
@@ -39,6 +47,9 @@ export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued 
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
   const [signature, setSignature] = useState('');
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // AI compose state
   const [showAiBar, setShowAiBar] = useState(false);
@@ -193,6 +204,26 @@ export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued 
     }
   };
 
+  const handleFiles = (files: FileList | null) => {
+    if (!files) return;
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(',')[1];
+        setAttachments(prev => [...prev, { name: file.name, type: file.type, data: base64, size: file.size }]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeAttachment = (idx: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const formatBytes = (bytes: number) => bytes < 1024 * 1024
+    ? `${(bytes / 1024).toFixed(0)}KB`
+    : `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+
   const handleSend = async () => {
     if (!account || !to.trim() || !body.trim() || sending) return;
     const payload: SendPayload = {
@@ -202,6 +233,7 @@ export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued 
       fromEmail: account.email,
       threadId: replyTo?.threadId,
       replyAll: (replyTo as Email & { replyAll?: boolean })?.replyAll,
+      attachments: attachments.length > 0 ? attachments : undefined,
     };
     if (onSendQueued) {
       onSendQueued(payload);
@@ -238,7 +270,9 @@ export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued 
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div style={{
-        width: 600, maxWidth: '92vw',
+        width: isExpanded ? 'min(960px, 92vw)' : 680,
+        maxWidth: '96vw',
+        maxHeight: isExpanded ? '92vh' : '85vh',
         background: 'var(--compose-bg)',
         borderRadius: 12,
         boxShadow: '0 32px 80px rgba(0,0,0,0.5)',
@@ -246,6 +280,7 @@ export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued 
         display: 'flex', flexDirection: 'column',
         overflow: 'hidden',
         animation: 'composeIn 0.18s ease',
+        transition: 'width 0.2s ease, max-height 0.2s ease',
       }}>
         {/* Title */}
         <div style={{
@@ -256,14 +291,25 @@ export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued 
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
           <span>{replyTo ? 'Reply' : 'New Message'}</span>
-          <button onClick={onClose} style={{ color: 'var(--text-muted)', fontSize: 20, lineHeight: 1, opacity: 0.5 }}
-            onMouseOver={e => (e.currentTarget.style.opacity = '1')}
-            onMouseOut={e => (e.currentTarget.style.opacity = '0.5')}
-          >×</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <button
+              onClick={() => setIsExpanded(v => !v)}
+              title={isExpanded ? 'Collapse' : 'Expand'}
+              style={{ color: 'var(--text-muted)', fontSize: 16, lineHeight: 1, opacity: 0.5, padding: '2px 4px' }}
+              onMouseOver={e => (e.currentTarget.style.opacity = '1')}
+              onMouseOut={e => (e.currentTarget.style.opacity = '0.5')}
+            >
+              {isExpanded ? '⊡' : '⊞'}
+            </button>
+            <button onClick={onClose} style={{ color: 'var(--text-muted)', fontSize: 20, lineHeight: 1, opacity: 0.5 }}
+              onMouseOver={e => (e.currentTarget.style.opacity = '1')}
+              onMouseOut={e => (e.currentTarget.style.opacity = '0.5')}
+            >×</button>
+          </div>
         </div>
 
         {/* Fields */}
-        <div>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
           <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 16 }}>
             <span style={{ fontSize: 12, color: 'var(--text-muted)', width: 48, flexShrink: 0 }}>From</span>
             <span style={{ fontSize: 13, color: 'var(--text)', opacity: 0.7 }}>{account?.email}</span>
@@ -394,20 +440,42 @@ export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued 
             onChange={e => setBody(e.target.value)}
             placeholder={replyTo ? 'Write your reply...' : 'Write your message...'}
             style={{
-              width: '100%', minHeight: 220, background: 'transparent',
+              width: '100%', flex: 1, minHeight: isExpanded ? 400 : 260,
+              background: 'transparent',
               color: 'var(--text)', border: 'none', fontSize: 14,
               outline: 'none', padding: '16px 24px',
               resize: 'none', fontFamily: 'DM Sans, sans-serif',
-              lineHeight: 1.75,
+              lineHeight: 1.75, boxSizing: 'border-box',
             }}
           />
         </div>
 
         {/* Footer */}
-        <div style={{
-          padding: '12px 24px', borderTop: '1px solid var(--border)',
-          display: 'flex', alignItems: 'center', gap: 10,
-        }}>
+        <div style={{ borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+          {/* Attachment chips */}
+          {attachments.length > 0 && (
+            <div style={{ padding: '8px 24px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {attachments.map((att, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '4px 10px', borderRadius: 20,
+                  background: 'rgba(212,168,83,0.1)', border: '1px solid rgba(212,168,83,0.25)',
+                  fontSize: 12, color: 'var(--text)',
+                }}>
+                  <span>📎</span>
+                  <span style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.name}</span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{formatBytes(att.size)}</span>
+                  <button
+                    onClick={() => removeAttachment(i)}
+                    style={{ color: 'var(--text-muted)', fontSize: 14, lineHeight: 1, marginLeft: 2 }}
+                    onMouseOver={e => (e.currentTarget.style.color = '#e05c5c')}
+                    onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+                  >×</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 10 }}>
           <button
             onClick={handleSend}
             disabled={sending || sent || !to.trim() || !body.trim()}
@@ -459,14 +527,39 @@ export default function ComposeModal({ accounts, replyTo, onClose, onSendQueued 
 
           <span style={{ fontSize: 11, color: 'var(--text-muted)', opacity: 0.5, marginLeft: 4 }}>⌘↵ send</span>
           {error && <span style={{ fontSize: 12, color: '#e05c5c', marginLeft: 'auto' }}>{error}</span>}
+
+          {/* Attachment button */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            style={{ display: 'none' }}
+            onChange={e => handleFiles(e.target.files)}
+            onClick={e => { (e.target as HTMLInputElement).value = ''; }}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            title="Attach files"
+            style={{
+              marginLeft: error ? 0 : 'auto',
+              padding: '6px 10px', borderRadius: 6,
+              fontSize: 16,
+              border: attachments.length > 0 ? '1px solid rgba(212,168,83,0.4)' : '1px solid transparent',
+              color: attachments.length > 0 ? 'var(--accent)' : 'var(--text-muted)',
+            }}
+            onMouseOver={e => (e.currentTarget.style.color = 'var(--accent)')}
+            onMouseOut={e => (e.currentTarget.style.color = attachments.length > 0 ? 'var(--accent)' : 'var(--text-muted)')}
+          >📎</button>
+
           <button
             onClick={onClose}
-            style={{ marginLeft: error ? 0 : 'auto', fontSize: 12, color: 'var(--text-muted)', padding: '6px 10px', borderRadius: 6 }}
+            style={{ marginLeft: error ? 0 : 0, fontSize: 12, color: 'var(--text-muted)', padding: '6px 10px', borderRadius: 6 }}
             onMouseOver={e => (e.currentTarget.style.color = 'var(--text)')}
             onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
           >
             Discard
           </button>
+          </div>
         </div>
       </div>
 
